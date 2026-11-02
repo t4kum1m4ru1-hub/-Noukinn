@@ -1,0 +1,1411 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0f19">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="音声認識テスト">
+  <meta name="description" content="Web Speech API音声認識検証・キーワード検知テストダッシュボード">
+  <title>音声認識テストダッシュボード | Speech Recognition Lab</title>
+
+  <!-- PWA Manifest (Data URI) -->
+  <link rel="manifest" href="data:application/manifest+json;base64,eyJuYW1lIjoi6Z+z5aOw6KqN6K2Y44OG44K544OI44OA44OD44K344Ol44Oc44O844OJIiwic2hvcnRfbmFtZSI6Iumfs+WjsOiogdadoFRlc3QiLCJzdGFydF91cmwiOiIuLyIsImRpc3BsYXkiOiJzdGFuZGFsb25lIiwiYmFja2dyb3VuZF9jb2xvciI6IiMwYjBmMTkiLCJ0aGVtZV9jb2xvciI6IiMwYjBmMTkifQ==">
+
+  <!-- iOS App Icon (SVG Inline Data URI) -->
+  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='110' fill='%23151d30'/%3E%3Cpath d='M256 128c-35.3 0-64 28.7-64 64v96c0 35.3 28.7 64 64 64s64-28.7 64-64v-96c0-35.3-28.7-64-64-64zm104 96a16 16 0 0 0-32 0c0 39.8-32.2 72-72 72s-72-32.2-72-72a16 16 0 0 0-32 0c0 53 40 96.7 92 103.1V400h-36a16 16 0 0 0 0 32h104a16 16 0 0 0 0-32h-36v-72.9c52-6.4 92-50.1 92-103.1z' fill='%2338bdf8'/%3E%3C/svg%3E">
+
+  <style>
+    :root {
+      --bg-main: #070b13;
+      --bg-card: #111827;
+      --bg-card-hover: #172033;
+      --bg-sub: #0d1320;
+      --border: #1f293d;
+      --border-light: #2d3b55;
+      --text-main: #f8fafc;
+      --text-sub: #94a3b8;
+      --text-muted: #64748b;
+      --accent: #38bdf8;
+      --accent-hover: #0ea5e9;
+      --accent-glow: rgba(56, 189, 248, 0.25);
+      --success: #10b981;
+      --success-bg: rgba(16, 185, 129, 0.12);
+      --success-border: rgba(16, 185, 129, 0.45);
+      --success-glow: rgba(16, 185, 129, 0.3);
+      --danger: #ef4444;
+      --danger-bg: rgba(239, 68, 68, 0.15);
+      --warning: #f59e0b;
+      --radius-lg: 14px;
+      --radius-md: 10px;
+      --radius-sm: 6px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Hiragino Sans", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      line-height: 1.5;
+      padding: 12px 14px 40px 14px;
+      padding-top: max(14px, env(safe-area-inset-top));
+      padding-bottom: max(40px, env(safe-area-inset-bottom));
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 680px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* Header */
+    header {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    }
+
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .title-group h1 {
+      font-size: 1.18rem;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .title-group p {
+      font-size: 0.75rem;
+      color: var(--text-sub);
+      margin-top: 2px;
+    }
+
+    .badge-api {
+      font-size: 0.7rem;
+      padding: 3px 8px;
+      border-radius: 9999px;
+      background: #1e293b;
+      color: var(--accent);
+      border: 1px solid var(--border);
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      font-family: monospace;
+    }
+
+    /* Audio / Recognition Status Indicator */
+    .status-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 12px;
+      background: var(--bg-sub);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border);
+      font-size: 0.82rem;
+      transition: all 0.2s ease;
+    }
+
+    .status-bar.listening {
+      border-color: rgba(239, 68, 68, 0.4);
+      background: rgba(239, 68, 68, 0.05);
+    }
+
+    .status-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 500;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      transition: all 0.25s ease;
+      flex-shrink: 0;
+    }
+
+    .status-dot.listening {
+      background: var(--danger);
+      box-shadow: 0 0 10px var(--danger);
+      animation: pulse-dot 1.2s infinite ease-in-out;
+    }
+
+    .status-dot.ready {
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent-glow);
+    }
+
+    .status-dot.error {
+      background: var(--warning);
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.35); opacity: 0.6; }
+    }
+
+    .mic-activity-bars {
+      display: inline-flex;
+      align-items: flex-end;
+      gap: 3px;
+      height: 14px;
+    }
+
+    .bar {
+      width: 3px;
+      height: 4px;
+      background: var(--text-muted);
+      border-radius: 1px;
+      transition: height 0.1s ease, background-color 0.2s;
+    }
+
+    .listening .bar {
+      background: var(--danger);
+      animation: sound-wave 0.8s infinite ease-in-out alternate;
+    }
+    .listening .bar:nth-child(1) { animation-delay: 0.1s; }
+    .listening .bar:nth-child(2) { animation-delay: 0.28s; }
+    .listening .bar:nth-child(3) { animation-delay: 0.42s; }
+    .listening .bar:nth-child(4) { animation-delay: 0.18s; }
+
+    @keyframes sound-wave {
+      0% { height: 3px; }
+      100% { height: 14px; }
+    }
+
+    /* Controls Grid */
+    .controls-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 10px;
+    }
+
+    .btn {
+      appearance: none;
+      border: none;
+      border-radius: var(--radius-md);
+      padding: 13px 16px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.15s ease;
+      touch-action: manipulation;
+    }
+
+    .btn:active {
+      transform: scale(0.97);
+    }
+
+    .btn-primary {
+      background: #2563eb;
+      color: #ffffff;
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+    }
+
+    .btn-primary:hover {
+      background: #1d4ed8;
+    }
+
+    .btn-primary.recording {
+      background: #dc2626;
+      box-shadow: 0 4px 14px rgba(220, 38, 38, 0.45);
+    }
+
+    .btn-secondary {
+      background: #1e293b;
+      color: var(--text-sub);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover {
+      background: #334155;
+      color: var(--text-main);
+    }
+
+    /* Settings & Options */
+    .toggle-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 4px 2px;
+      font-size: 0.78rem;
+      color: var(--text-sub);
+    }
+
+    .toggle-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .toggle-label input {
+      accent-color: var(--accent);
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+
+    /* Unsupported & Tips */
+    .banner {
+      display: none;
+      padding: 10px 14px;
+      border-radius: var(--radius-md);
+      font-size: 0.8rem;
+      background: var(--danger-bg);
+      border: 1px solid var(--danger);
+      color: #fca5a5;
+    }
+
+    .banner.show {
+      display: block;
+    }
+
+    details.tips-details {
+      background: var(--bg-sub);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      font-size: 0.76rem;
+      color: var(--text-muted);
+      overflow: hidden;
+    }
+
+    details.tips-details summary {
+      padding: 8px 12px;
+      cursor: pointer;
+      font-weight: 600;
+      color: var(--text-sub);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      user-select: none;
+    }
+
+    details.tips-details .tips-content {
+      padding: 10px 12px 12px 12px;
+      border-top: 1px solid var(--border);
+      line-height: 1.5;
+    }
+
+    details.tips-details .tips-content ul {
+      margin-left: 18px;
+      margin-top: 4px;
+    }
+
+    /* Realtime Transcript Panel */
+    .transcript-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    }
+
+    .card-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-sub);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .transcript-box {
+      min-height: 72px;
+      max-height: 140px;
+      overflow-y: auto;
+      padding: 12px 14px;
+      background: var(--bg-sub);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border);
+      font-size: 0.95rem;
+      word-break: break-all;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+    }
+
+    .transcript-final {
+      color: var(--text-main);
+      font-weight: 500;
+      line-height: 1.45;
+    }
+
+    .transcript-interim {
+      color: var(--accent);
+      font-style: italic;
+      opacity: 0.9;
+    }
+
+    .transcript-placeholder {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      font-style: italic;
+    }
+
+    /* Target Phrases List */
+    .phrases-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    }
+
+    .phrases-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .progress-pill {
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 3px 12px;
+      border-radius: 9999px;
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--success);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      transition: all 0.3s ease;
+    }
+
+    .phrases-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .phrase-card {
+      background: var(--bg-sub);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .phrase-card.success {
+      background: var(--success-bg);
+      border-color: var(--success-border);
+      box-shadow: 0 0 16px var(--success-glow);
+    }
+
+    .phrase-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .phrase-title-row {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+
+    .phrase-index {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      font-family: monospace;
+      font-weight: 700;
+    }
+
+    .phrase-name {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text-main);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .phrase-variants {
+      font-size: 0.72rem;
+      color: var(--text-sub);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .phrase-detected-info {
+      font-size: 0.72rem;
+      color: var(--success);
+      margin-top: 3px;
+      font-family: "SF Mono", Menlo, Consolas, monospace;
+      display: none;
+      word-break: break-all;
+    }
+
+    .phrase-card.success .phrase-detected-info {
+      display: block;
+      animation: fadeIn 0.3s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-3px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .status-badge {
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 5px 12px;
+      border-radius: 20px;
+      background: #1e293b;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      flex-shrink: 0;
+      transition: all 0.2s ease;
+    }
+
+    .phrase-card.success .status-badge {
+      background: var(--success);
+      color: #ffffff;
+      border-color: var(--success);
+      box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
+    }
+
+    /* Simulator / Manual Test Accordion */
+    .simulator-box {
+      margin-top: 6px;
+      padding: 10px;
+      background: var(--bg-sub);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      display: flex;
+      gap: 8px;
+    }
+
+    .sim-input {
+      flex: 1;
+      background: #070b13;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-main);
+      font-size: 0.85rem;
+      padding: 8px 12px;
+      outline: none;
+    }
+
+    .sim-input:focus {
+      border-color: var(--accent);
+    }
+
+    .btn-sim {
+      background: #334155;
+      color: #ffffff;
+      border: none;
+      border-radius: var(--radius-sm);
+      padding: 8px 14px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .btn-sim:active {
+      transform: scale(0.96);
+    }
+
+    /* Debug Console */
+    .console-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    }
+
+    .console-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .console-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-xs {
+      background: #1e293b;
+      color: var(--text-sub);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 0.72rem;
+      padding: 4px 9px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .btn-xs:hover {
+      background: #334155;
+      color: var(--text-main);
+    }
+
+    .btn-xs:active {
+      transform: scale(0.95);
+    }
+
+    .console-box {
+      height: 190px;
+      overflow-y: auto;
+      background: #05080e;
+      border: 1px solid #162035;
+      border-radius: var(--radius-md);
+      padding: 10px;
+      font-family: "SF Mono", Menlo, Consolas, Monaco, monospace;
+      font-size: 0.74rem;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      overscroll-behavior: contain;
+    }
+
+    .log-entry {
+      line-height: 1.4;
+      word-break: break-all;
+      display: flex;
+      gap: 6px;
+    }
+
+    .log-time {
+      color: #475569;
+      flex-shrink: 0;
+    }
+
+    .log-tag {
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .log-tag.info { color: #38bdf8; }
+    .log-tag.result { color: #c084fc; }
+    .log-tag.match { color: #34d399; }
+    .log-tag.warn { color: #fbbf24; }
+    .log-tag.error { color: #f87171; }
+    .log-tag.event { color: #94a3b8; }
+
+    .log-msg {
+      color: #cbd5e1;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <!-- Header & Recognition Controls -->
+    <header>
+      <div class="header-top">
+        <div class="title-group">
+          <h1>
+            <span>🎙️</span> 音声認識テスト
+          </h1>
+          <p>Web Speech API Keyword Recognition Test Dashboard</p>
+        </div>
+        <span class="badge-api" id="apiEngineBadge">SpeechRecognition</span>
+      </div>
+
+      <div class="status-bar" id="statusBar">
+        <div class="status-left">
+          <div class="status-dot" id="statusDot"></div>
+          <span id="statusText">停止中 (待機状態)</span>
+        </div>
+        <div class="mic-activity-bars" id="micBars" title="音声検出インジケーター">
+          <div class="bar"></div>
+          <div class="bar"></div>
+          <div class="bar"></div>
+          <div class="bar"></div>
+        </div>
+      </div>
+
+      <!-- Main Action Buttons -->
+      <div class="controls-grid">
+        <button class="btn btn-primary" id="btnToggleRecord">
+          <span id="btnRecordIcon">▶</span>
+          <span id="btnRecordText">音声認識スタート</span>
+        </button>
+        <button class="btn btn-secondary" id="btnResetState">
+          <span>🔄</span>
+          <span>リセット</span>
+        </button>
+      </div>
+
+      <!-- Option Switches -->
+      <div class="toggle-row">
+        <label class="toggle-label" title="検知時にWeb Audioチャイム音を再生">
+          <input type="checkbox" id="chkSoundFeedback" checked>
+          <span>検知時チャイム音 (Web Audio)</span>
+        </label>
+        <label class="toggle-label" title="iOS Safariの無音停止に対応する自動再接続">
+          <input type="checkbox" id="chkAutoRestart" checked>
+          <span>iOS自動再接続ループ</span>
+        </label>
+      </div>
+
+      <!-- Unsupported Browser Warning -->
+      <div id="unsupportedBanner" class="banner">
+        ⚠️ お使いのブラウザは Web Speech API（SpeechRecognition / webkitSpeechRecognition）をサポートしていません。iOS Safari (14.5+) または Google Chrome をご利用ください。
+      </div>
+
+      <!-- Tips Accordion -->
+      <details class="tips-details">
+        <summary>ℹ️ iOS Safari & モバイル環境でのテストTips</summary>
+        <div class="tips-content">
+          <ul>
+            <li><strong>マイク権限</strong>: 画面上の「音声認識スタート」ボタンをタップした時のみブラウザのマイク許可ダイアログが表示されます。</li>
+            <li><strong>接続要件</strong>: Web Speech APIはセキュリティ上、<strong>HTTPS環境</strong>または<strong>ローカルホスト（localhost）</strong>でのみ利用可能です。</li>
+            <li><strong>iOS Safariの自動停止仕様</strong>: iOSでは発話がないまま数秒経過するとセッションが自動終了（<code>onend</code>）しますが、「iOS自動再接続ループ」により約250msで自動復帰します。</li>
+          </ul>
+        </div>
+      </details>
+    </header>
+
+    <!-- Realtime Transcript Box -->
+    <section class="transcript-card">
+      <div class="card-label">
+        <span>リアルタイム認識テキスト</span>
+        <span id="transcriptModeBadge" style="color: var(--accent); font-weight: normal; font-size: 0.7rem;">ja-JP / continuous / interim</span>
+      </div>
+      <div class="transcript-box" id="transcriptBox">
+        <div class="transcript-placeholder" id="transcriptPlaceholder">「音声認識スタート」を押して発話し始めてください...</div>
+        <div class="transcript-final" id="transcriptFinal"></div>
+        <div class="transcript-interim" id="transcriptInterim"></div>
+      </div>
+    </section>
+
+    <!-- Target Phrases Cards List -->
+    <section class="phrases-section">
+      <div class="phrases-header">
+        <div class="card-label" style="margin-bottom: 0;">検知対象フレーズ (全7項目)</div>
+        <span class="progress-pill" id="progressPill">0 / 7 達成 (0%)</span>
+      </div>
+
+      <div class="phrases-grid" id="phrasesGrid">
+        <!-- Rendered by JavaScript -->
+      </div>
+
+      <!-- Manual Test Simulator for Verification -->
+      <div class="simulator-box">
+        <input type="text" class="sim-input" id="simInput" placeholder="手動テスト用: ここにテキストを入力 (例: 1kg, 0.5キロ)">
+        <button class="btn-sim" id="btnSimulate">判定テスト</button>
+      </div>
+    </section>
+
+    <!-- Debug Log Console -->
+    <section class="console-section">
+      <div class="console-header">
+        <div class="card-label" style="margin-bottom: 0;">デバッグログコンソール</div>
+        <div class="console-actions">
+          <button class="btn-xs" id="btnClearLog">ログクリア</button>
+          <button class="btn-xs" id="btnCopyLog">コピー</button>
+        </div>
+      </div>
+      <div class="console-box" id="consoleBox">
+        <!-- Log entries stream here -->
+      </div>
+    </section>
+
+  </div>
+
+  <script>
+    (() => {
+      'use strict';
+
+      // ==========================================
+      // 1. 定義 & 表記ゆれ判定ルール (7フレーズ)
+      // ==========================================
+      const PHRASE_DEFINITIONS = [
+        {
+          id: 'phrase-1',
+          name: '完了',
+          variantsDesc: '「完了」「かんりょう」',
+          matcher: (raw, norm) => {
+            return /完了|かんりょう|カンリョウ/.test(raw);
+          }
+        },
+        {
+          id: 'phrase-2',
+          name: '調整',
+          variantsDesc: '「調整」「ちょうせい」',
+          matcher: (raw, norm) => {
+            return /調整|ちょうせい|チョウセイ/.test(raw);
+          }
+        },
+        {
+          id: 'phrase-3',
+          name: '重くする',
+          variantsDesc: '「重くする」「おもくする」「重く」',
+          matcher: (raw, norm) => {
+            return /重くする|おもくする|オモクスル|重く/.test(raw);
+          }
+        },
+        {
+          id: 'phrase-4',
+          name: '軽くする',
+          variantsDesc: '「軽くする」「かるくする」「軽く」',
+          matcher: (raw, norm) => {
+            return /軽くする|かるくする|カルクスル|軽く/.test(raw);
+          }
+        },
+        {
+          id: 'phrase-5',
+          name: '変更',
+          variantsDesc: '「変更」「へんこう」',
+          matcher: (raw, norm) => {
+            return /変更|へんこう|ヘンコウ/.test(raw);
+          }
+        },
+        {
+          id: 'phrase-6',
+          name: '１キロ',
+          variantsDesc: '全角/半角/一キロ/いちきろ/1kg/1k',
+          matcher: (raw, norm) => {
+            const compact = norm.replace(/\s+/g, '');
+            // 「0.5キロ」の「5キロ」に誤マッチしないよう、直前に 0. や 点 や ドットがないことを厳格に担保
+            const patterns = [
+              /(?:^|[^\d\.\,点コンマ零れ])(1|一|いち|イチ)\s*(キロ|きろ|kg|k)(?:[^\d]|$)/i,
+              /(?:^|[^\d\.\,点コンマ零れ])(1|一|いち|イチ)キロ/i,
+              /(?:^|[^\d\.\,点コンマ零れ])(1|一|いち|イチ)kg/i,
+              /(?:^|[^\d\.\,点コンマ零れ])いちきろ/i
+            ];
+            return patterns.some(p => p.test(norm) || p.test(compact) || p.test(raw));
+          }
+        },
+        {
+          id: 'phrase-7',
+          name: '0.5キロ',
+          variantsDesc: '0.5キロ/０．５/0.5kg/れいってんご/コンマ5/点5/半キロ',
+          matcher: (raw, norm) => {
+            const compact = norm.replace(/\s+/g, '');
+            const patterns = [
+              // 0.5 または 0,5 または .5
+              /(0[\.\,]5|\.5)\s*(キロ|きろ|kg|k)?/i,
+              // れいてんご / れいってんご / 零点五
+              /(零点五|れいてんご|れいってんご|レイテンゴ|レイッテンド)\s*(キロ|きろ|kg|k)?/i,
+              // 点5 / てんご
+              /(点5|てんご|テンゴ|点五)\s*(キロ|きろ|kg|k)?/i,
+              // コンマ5
+              /(コンマ5|コンマ五|こんま5|こんまご)\s*(キロ|きろ|kg|k)?/i,
+              // 半キロ
+              /(半キロ|はんきろ|ハンキロ)/i
+            ];
+            return patterns.some(p => p.test(norm) || p.test(compact) || p.test(raw));
+          }
+        }
+      ];
+
+      // ==========================================
+      // 2. テキスト正規化ユーティリティ
+      // ==========================================
+      function normalizeJapaneseText(text) {
+        if (!text) return '';
+        let str = text;
+        // 1. 全角英数記号を半角に変換
+        str = str.replace(/[！-～]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
+        // 2. 特殊空白を標準半角スペースへ
+        str = str.replace(/[\u3000\s]+/g, ' ');
+        // 3. 小文字化
+        str = str.toLowerCase();
+        // 4. 句読点（、。！？!?）を除去
+        str = str.replace(/[、。！？\?!]/g, ' ');
+        return str.trim();
+      }
+
+      // ==========================================
+      // 3. Web Audio 効果音生成 (検知チャイム)
+      // ==========================================
+      let audioCtx = null;
+      function playDetectionSound() {
+        if (!chkSoundFeedback.checked) return;
+        try {
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          if (!AudioContextClass) return;
+          if (!audioCtx) {
+            audioCtx = new AudioContextClass();
+          }
+          if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+          }
+
+          const now = audioCtx.currentTime;
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+
+          osc.type = 'sine';
+          // 爽快な2音チャイム (E5 -> B5: 659.25Hz -> 987.77Hz)
+          osc.frequency.setValueAtTime(659.25, now);
+          osc.frequency.exponentialRampToValueAtTime(987.77, now + 0.08);
+
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(0.25, now + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+
+          osc.start(now);
+          osc.stop(now + 0.25);
+        } catch (e) {
+          // AudioContext unavailable
+        }
+      }
+
+      // ==========================================
+      // 4. DOM要素
+      // ==========================================
+      const statusDot = document.getElementById('statusDot');
+      const statusText = document.getElementById('statusText');
+      const statusBar = document.getElementById('statusBar');
+      const micBars = document.getElementById('micBars');
+      const btnToggleRecord = document.getElementById('btnToggleRecord');
+      const btnRecordIcon = document.getElementById('btnRecordIcon');
+      const btnRecordText = document.getElementById('btnRecordText');
+      const btnResetState = document.getElementById('btnResetState');
+      const chkSoundFeedback = document.getElementById('chkSoundFeedback');
+      const chkAutoRestart = document.getElementById('chkAutoRestart');
+      const transcriptBox = document.getElementById('transcriptBox');
+      const transcriptPlaceholder = document.getElementById('transcriptPlaceholder');
+      const transcriptFinal = document.getElementById('transcriptFinal');
+      const transcriptInterim = document.getElementById('transcriptInterim');
+      const phrasesGrid = document.getElementById('phrasesGrid');
+      const progressPill = document.getElementById('progressPill');
+      const consoleBox = document.getElementById('consoleBox');
+      const btnClearLog = document.getElementById('btnClearLog');
+      const btnCopyLog = document.getElementById('btnCopyLog');
+      const unsupportedBanner = document.getElementById('unsupportedBanner');
+      const apiEngineBadge = document.getElementById('apiEngineBadge');
+      const simInput = document.getElementById('simInput');
+      const btnSimulate = document.getElementById('btnSimulate');
+
+      // 判定状態管理
+      const phraseStatus = new Map();
+      PHRASE_DEFINITIONS.forEach(p => {
+        phraseStatus.set(p.id, {
+          detected: false,
+          detectedAt: null,
+          matchedText: ''
+        });
+      });
+
+      // ==========================================
+      // 5. ログコンソール機能
+      // ==========================================
+      function addLog(tag, message, type = 'info') {
+        const d = new Date();
+        const timeStr = [
+          d.getHours().toString().padStart(2, '0'),
+          d.getMinutes().toString().padStart(2, '0'),
+          d.getSeconds().toString().padStart(2, '0')
+        ].join(':') + '.' + d.getMilliseconds().toString().padStart(3, '0');
+
+        const entry = document.createElement('div');
+        entry.className = 'log-entry';
+
+        entry.innerHTML = `
+          <span class="log-time">[${timeStr}]</span>
+          <span class="log-tag ${type}">[${tag}]</span>
+          <span class="log-msg">${escapeHtml(message)}</span>
+        `;
+
+        const isScrolledToBottom = (consoleBox.scrollHeight - consoleBox.clientHeight <= consoleBox.scrollTop + 35);
+        consoleBox.appendChild(entry);
+
+        if (isScrolledToBottom) {
+          consoleBox.scrollTop = consoleBox.scrollHeight;
+        }
+      }
+
+      function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      btnClearLog.addEventListener('click', () => {
+        consoleBox.innerHTML = '';
+        addLog('LOG', 'ログコンソールを初期化しました', 'info');
+      });
+
+      btnCopyLog.addEventListener('click', async () => {
+        const text = Array.from(consoleBox.querySelectorAll('.log-entry'))
+          .map(el => el.textContent.replace(/\s+/g, ' ').trim())
+          .join('\n');
+        try {
+          await navigator.clipboard.writeText(text);
+          const orig = btnCopyLog.textContent;
+          btnCopyLog.textContent = 'コピー完了✓';
+          setTimeout(() => btnCopyLog.textContent = orig, 1500);
+        } catch (e) {
+          addLog('ERROR', 'ログのクリップボードコピーに失敗: ' + e.message, 'error');
+        }
+      });
+
+      // ==========================================
+      // 6. UIレンダリング: フレーズカード生成 & 更新
+      // ==========================================
+      function renderPhraseCards() {
+        phrasesGrid.innerHTML = '';
+        PHRASE_DEFINITIONS.forEach((p, idx) => {
+          const state = phraseStatus.get(p.id);
+          const card = document.createElement('div');
+          card.className = `phrase-card ${state.detected ? 'success' : ''}`;
+          card.id = `card-${p.id}`;
+
+          card.innerHTML = `
+            <div class="phrase-info">
+              <div class="phrase-title-row">
+                <span class="phrase-index">#${idx + 1}</span>
+                <span class="phrase-name">「${escapeHtml(p.name)}」</span>
+              </div>
+              <div class="phrase-variants">${escapeHtml(p.variantsDesc)}</div>
+              <div class="phrase-detected-info" id="detected-info-${p.id}">
+                ${state.detected ? `✓ 検知: ${state.detectedAt} (発話: "${escapeHtml(state.matchedText)}")` : ''}
+              </div>
+            </div>
+            <div class="status-badge">
+              <span class="badge-icon">${state.detected ? '✓' : '○'}</span>
+              <span class="badge-text">${state.detected ? '成功' : '未検知'}</span>
+            </div>
+          `;
+          phrasesGrid.appendChild(card);
+        });
+
+        updateProgress();
+      }
+
+      function updateProgress() {
+        let successCount = 0;
+        phraseStatus.forEach(v => {
+          if (v.detected) successCount++;
+        });
+        const total = PHRASE_DEFINITIONS.length;
+        const percent = Math.round((successCount / total) * 100);
+        progressPill.textContent = `${successCount} / ${total} 達成 (${percent}%)`;
+        if (successCount === total) {
+          progressPill.style.background = 'rgba(16, 185, 129, 0.35)';
+          progressPill.style.borderColor = 'var(--success)';
+        } else {
+          progressPill.style.background = 'rgba(16, 185, 129, 0.15)';
+        }
+      }
+
+      function markPhraseDetected(phraseDef, matchedSegment) {
+        const state = phraseStatus.get(phraseDef.id);
+        if (state.detected) return; // 既に検知済みなら保持
+
+        const d = new Date();
+        const timeStr = [
+          d.getHours().toString().padStart(2, '0'),
+          d.getMinutes().toString().padStart(2, '0'),
+          d.getSeconds().toString().padStart(2, '0')
+        ].join(':');
+
+        state.detected = true;
+        state.detectedAt = timeStr;
+        state.matchedText = matchedSegment;
+
+        const card = document.getElementById(`card-${phraseDef.id}`);
+        if (card) {
+          card.classList.add('success');
+          const badgeIcon = card.querySelector('.badge-icon');
+          const badgeText = card.querySelector('.badge-text');
+          const infoBox = document.getElementById(`detected-info-${phraseDef.id}`);
+          if (badgeIcon) badgeIcon.textContent = '✓';
+          if (badgeText) badgeText.textContent = '成功';
+          if (infoBox) {
+            infoBox.textContent = `✓ 検知: ${timeStr} (発話: "${matchedSegment}")`;
+          }
+        }
+
+        updateProgress();
+        playDetectionSound();
+        addLog('MATCH', `フレーズ「${phraseDef.name}」を検知成功！ (一致発話: "${matchedSegment}")`, 'match');
+      }
+
+      // ==========================================
+      // 7. 発話認識の評価 & マッチングロジック
+      // ==========================================
+      function evaluateRecognitionResult(transcript) {
+        if (!transcript || !transcript.trim()) return;
+
+        const norm = normalizeJapaneseText(transcript);
+
+        PHRASE_DEFINITIONS.forEach(def => {
+          const state = phraseStatus.get(def.id);
+          if (state.detected) return; // 一度成功した項目は保持
+
+          if (def.matcher(transcript, norm)) {
+            markPhraseDetected(def, transcript);
+          }
+        });
+      }
+
+      // ==========================================
+      // 8. Web Speech API (SpeechRecognition) 実装
+      // ==========================================
+      const SpeechRecognitionClass = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+      if (!SpeechRecognitionClass) {
+        unsupportedBanner.classList.add('show');
+        apiEngineBadge.textContent = '非対応ブラウザ';
+        apiEngineBadge.style.color = 'var(--danger)';
+        addLog('ERROR', 'Web Speech API (SpeechRecognition) が利用できません', 'error');
+      } else {
+        const isWebkit = !!window.webkitSpeechRecognition;
+        apiEngineBadge.textContent = isWebkit ? 'webkitSpeechRecognition' : 'SpeechRecognition';
+      }
+
+      let recognition = null;
+      let isUserStarted = false; // ユーザーが意図して稼働中か
+      let isActuallyRunning = false; // recognition instanceが現在稼働しているか
+      let restartTimer = null;
+      let finalAccumulatedTranscript = '';
+
+      function updateStatusUI(state, text) {
+        statusDot.className = 'status-dot';
+        statusBar.classList.remove('listening');
+
+        if (state === 'listening') {
+          statusDot.classList.add('listening');
+          statusBar.classList.add('listening');
+          statusText.textContent = text || '音声認識中 (リスニング中...)';
+          btnRecordIcon.textContent = '⏹';
+          btnRecordText.textContent = '認識ストップ';
+          btnToggleRecord.classList.add('recording');
+        } else if (state === 'ready') {
+          statusDot.classList.add('ready');
+          statusText.textContent = text || '待機中';
+          btnRecordIcon.textContent = '▶';
+          btnRecordText.textContent = '音声認識スタート';
+          btnToggleRecord.classList.remove('recording');
+        } else if (state === 'error') {
+          statusDot.classList.add('error');
+          statusText.textContent = text || 'エラー発生';
+          btnRecordIcon.textContent = '▶';
+          btnRecordText.textContent = '音声認識スタート';
+          btnToggleRecord.classList.remove('recording');
+        } else {
+          statusText.textContent = text || '停止中';
+          btnRecordIcon.textContent = '▶';
+          btnRecordText.textContent = '音声認識スタート';
+          btnToggleRecord.classList.remove('recording');
+        }
+      }
+
+      function initRecognition() {
+        if (!SpeechRecognitionClass) return null;
+
+        const rec = new SpeechRecognitionClass();
+        rec.lang = 'ja-JP';
+        rec.continuous = true;
+        rec.interimResults = true;
+        rec.maxAlternatives = 3;
+
+        rec.onstart = () => {
+          isActuallyRunning = true;
+          updateStatusUI('listening', 'マイク稼働中 (音声をお話しください)');
+          addLog('EVENT', 'recognition.onstart: 音声認識エンジン開始', 'event');
+        };
+
+        rec.onaudiostart = () => {
+          addLog('EVENT', 'recognition.onaudiostart: オーディオ入力キャプチャ開始', 'event');
+        };
+
+        rec.onsoundstart = () => {
+          addLog('EVENT', 'recognition.onsoundstart: 音声を検知しました', 'event');
+        };
+
+        rec.onspeechstart = () => {
+          addLog('EVENT', 'recognition.onspeechstart: 発話（スピーチ）を検出中', 'info');
+        };
+
+        rec.onspeechend = () => {
+          addLog('EVENT', 'recognition.onspeechend: 発話終了を検出', 'event');
+        };
+
+        rec.onsoundend = () => {
+          addLog('EVENT', 'recognition.onsoundend: 音声入力終了', 'event');
+        };
+
+        rec.onaudioend = () => {
+          addLog('EVENT', 'recognition.onaudioend: オーディオキャプチャ終了', 'event');
+        };
+
+        rec.onnomatch = () => {
+          addLog('EVENT', 'recognition.onnomatch: 音声は認識されましたが適合する候補がありません', 'warn');
+        };
+
+        rec.onerror = (event) => {
+          isActuallyRunning = false;
+          addLog('ERROR', `recognition.onerror: [${event.error}] ${event.message || ''}`, 'error');
+
+          if (event.error === 'not-allowed') {
+            isUserStarted = false;
+            updateStatusUI('error', 'マイク権限が拒否されました');
+            alert('マイクの使用が拒否されました。Safariまたはブラウザの設定でマイク権限を許可してください。');
+          } else if (event.error === 'service-not-allowed') {
+            isUserStarted = false;
+            updateStatusUI('error', '音声認識サービスが許可されていません');
+          } else if (event.error === 'network') {
+            updateStatusUI('error', 'ネットワーク接続エラー');
+          } else if (event.error === 'no-speech') {
+            // iOS等で一定時間無音だと発火するが、自動ループで復帰
+            addLog('INFO', '音声未検出タイムアウト (no-speech)', 'info');
+          }
+        };
+
+        rec.onend = () => {
+          isActuallyRunning = false;
+          addLog('EVENT', 'recognition.onend: 音声認識セッション終了', 'event');
+
+          if (isUserStarted && chkAutoRestart.checked) {
+            updateStatusUI('listening', 'セッション再接続中...');
+            addLog('INFO', 'iOS仕様に応じた自動再接続 (250ms後)', 'info');
+            clearTimeout(restartTimer);
+            restartTimer = setTimeout(() => {
+              if (isUserStarted) {
+                try {
+                  rec.start();
+                } catch (e) {
+                  addLog('WARN', `再開トライ待機: ${e.message}`, 'warn');
+                  restartTimer = setTimeout(() => {
+                    if (isUserStarted) rec.start();
+                  }, 500);
+                }
+              }
+            }, 250);
+          } else {
+            updateStatusUI('ready', '停止中 (待機状態)');
+          }
+        };
+
+        rec.onresult = (event) => {
+          let interimText = '';
+          let currentFinalText = '';
+          const candidateStrings = [];
+
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            const res = event.results[i];
+            const primaryTranscript = res[0].transcript;
+
+            // 全候補を取得（maxAlternatives）
+            for (let j = 0; j < res.length; j++) {
+              candidateStrings.push(res[j].transcript);
+            }
+
+            if (res.isFinal) {
+              currentFinalText += primaryTranscript;
+              finalAccumulatedTranscript += primaryTranscript + ' ';
+            } else {
+              interimText += primaryTranscript;
+            }
+          }
+
+          // UI表示の更新
+          if (transcriptPlaceholder) {
+            transcriptPlaceholder.style.display = (finalAccumulatedTranscript || interimText) ? 'none' : 'block';
+          }
+          transcriptFinal.textContent = finalAccumulatedTranscript;
+          transcriptInterim.textContent = interimText ? ` ${interimText}` : '';
+          transcriptBox.scrollTop = transcriptBox.scrollHeight;
+
+          // ログ出力（確定または中間）
+          if (currentFinalText) {
+            addLog('RESULT', `[確定] ${currentFinalText}`, 'result');
+          } else if (interimText) {
+            addLog('RESULT', `[中間] ${interimText}`, 'info');
+          }
+
+          // すべての候補文字列を評価
+          candidateStrings.forEach(text => {
+            evaluateRecognitionResult(text);
+          });
+        };
+
+        return rec;
+      }
+
+      // ==========================================
+      // 9. イベントハンドラ & ボタン操作
+      // ==========================================
+      btnToggleRecord.addEventListener('click', () => {
+        if (!SpeechRecognitionClass) {
+          alert('お使いのブラウザは Web Speech API に対応していません。');
+          return;
+        }
+
+        // Web Audioのユーザーインタラクションによるロック解除
+        if (!audioCtx) {
+          try {
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            if (AudioContextClass) audioCtx = new AudioContextClass();
+          } catch (e) {}
+        }
+        if (audioCtx && audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+
+        if (isUserStarted) {
+          // 停止
+          isUserStarted = false;
+          clearTimeout(restartTimer);
+          if (recognition) {
+            try {
+              recognition.stop();
+            } catch (e) {}
+          }
+          updateStatusUI('ready', '停止中 (待機状態)');
+          addLog('INFO', 'ユーザー操作により音声認識を停止しました', 'info');
+        } else {
+          // 開始
+          isUserStarted = true;
+          if (!recognition) {
+            recognition = initRecognition();
+          }
+          try {
+            recognition.start();
+            addLog('INFO', 'ユーザー操作により音声認識を開始しました', 'info');
+          } catch (e) {
+            addLog('WARN', `開始リクエストエラー: ${e.message}`, 'warn');
+            if (isActuallyRunning) {
+              recognition.stop();
+            }
+          }
+        }
+      });
+
+      // 状態リセット
+      btnResetState.addEventListener('click', () => {
+        // 判定結果のリセット
+        PHRASE_DEFINITIONS.forEach(p => {
+          phraseStatus.set(p.id, {
+            detected: false,
+            detectedAt: null,
+            matchedText: ''
+          });
+        });
+
+        // テキスト表示リセット
+        finalAccumulatedTranscript = '';
+        transcriptFinal.textContent = '';
+        transcriptInterim.textContent = '';
+        if (transcriptPlaceholder) {
+          transcriptPlaceholder.style.display = 'block';
+        }
+
+        // カード再描画
+        renderPhraseCards();
+        addLog('INFO', '判定ステータスおよび文字起こしを初期化しました', 'info');
+      });
+
+      // 手動テストシミュレーター
+      function executeSimulation() {
+        const text = simInput.value.trim();
+        if (!text) return;
+        addLog('TEST', `手動テスト入力: "${text}"`, 'info');
+        evaluateRecognitionResult(text);
+        simInput.value = '';
+      }
+
+      btnSimulate.addEventListener('click', executeSimulation);
+      simInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          executeSimulation();
+        }
+      });
+
+      // ==========================================
+      // 10. Service Worker登録 (PWAキャッシュ / オフライン対応)
+      // ==========================================
+      if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
+        const swScript = `
+          const CACHE_NAME = 'speech-test-v1';
+          self.addEventListener('install', (e) => {
+            self.skipWaiting();
+          });
+          self.addEventListener('activate', (e) => {
+            e.waitUntil(clients.claim());
+          });
+          self.addEventListener('fetch', (e) => {
+            e.respondWith(
+              fetch(e.request).catch(() => caches.match(e.request))
+            );
+          });
+        `;
+        try {
+          const blob = new Blob([swScript], { type: 'application/javascript' });
+          const swUrl = URL.createObjectURL(blob);
+          navigator.serviceWorker.register(swUrl)
+            .then(() => addLog('INFO', 'PWA Service Worker 登録完了', 'info'))
+            .catch(err => addLog('INFO', `Service Worker 登録スキップ (${err.message})`, 'info'));
+        } catch (e) {
+          // ignore
+        }
+      }
+
+      // 初回起動
+      renderPhraseCards();
+      addLog('INFO', '音声認識テストダッシュボード 準備完了', 'info');
+      addLog('INFO', '「音声認識スタート」ボタンをタップしてテストを開始してください', 'info');
+
+    })();
+  </script>
+</body>
+</html>
