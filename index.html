@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Gym AI - モード切替検証(iOS対策版)</title>
+  <style>
+    :root {
+      --bg-color: #121212;
+      --panel-bg: #1e1e1e;
+      --primary: #4ade80;
+      --warning: #f59e0b;
+      --text-main: #ffffff;
+      --text-sub: #a0a0a0;
+    }
+    body {
+      margin: 0; padding: 0; background-color: var(--bg-color); color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      display: flex; flex-direction: column; height: 100vh; box-sizing: border-box;
+    }
+    header {
+      background-color: var(--panel-bg); padding: 16px; text-align: center;
+      font-size: 1.2rem; font-weight: bold; border-bottom: 1px solid #333;
+    }
+    .status-badge {
+      display: inline-block; padding: 4px 12px; border-radius: 16px; font-size: 0.9rem;
+      font-weight: bold; margin-top: 8px;
+    }
+    .mode-workout { background-color: rgba(74, 222, 128, 0.2); color: var(--primary); }
+    .mode-weight { background-color: rgba(245, 158, 11, 0.2); color: var(--warning); border: 1px solid var(--warning); }
+    
+    .display-area { padding: 32px 16px; text-align: center; flex: 1; display: flex; flex-direction: column; justify-content: center; }
+    .exercise-name { font-size: 2rem; font-weight: 800; margin-bottom: 8px; color: var(--primary); }
+    .exercise-details { font-size: 1.5rem; color: var(--text-sub); }
+    .weight-highlight { color: var(--warning); font-size: 2rem; font-weight: bold; }
+    
+    .controls-area { padding: 16px; background-color: var(--panel-bg); border-top: 1px solid #333; }
+    button { width: 100%; padding: 16px; margin-bottom: 12px; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: bold; cursor: pointer; }
+    #btn-start { background-color: var(--primary); color: #000; }
+    
+    .log-area { height: 150px; background-color: #000; overflow-y: auto; padding: 12px; font-size: 0.85rem; font-family: monospace; color: #0f0; border-top: 1px solid #333; }
+    .log-entry { margin-bottom: 6px; border-bottom: 1px dashed #333; padding-bottom: 4px; }
+  </style>
+</head>
+<body>
+
+  <header>
+    Gym AI - モード切替検証<br>
+    <span id="ui-mode-badge" class="status-badge mode-workout">🟢 ワークアウト中</span>
+  </header>
+
+  <!-- GitHubに配置した実体ファイル（bgm.mp3）を読み込む想定 -->
+  <audio id="bgm" src="./bgm.mp3" loop playsinline preload="auto" style="display:none;"></audio>
+
+  <div class="display-area">
+    <div class="exercise-name" id="ui-name">準備中...</div>
+    <div class="exercise-details">
+      重量: <span id="ui-weight">--</span> kg <br>
+      回数: <span id="ui-reps">--</span> Reps
+    </div>
+  </div>
+
+  <div class="controls-area">
+    <button id="btn-start">🎵 接続＆開始</button>
+  </div>
+
+  <div class="log-area" id="log-container">
+    <div class="log-entry">システム: イヤホン操作前に「開始」を押してください。</div>
+  </div>
+
+  <script>
+    const exercises = [
+      { name: "ベンチプレス", weight: 65, reps: 10 },
+      { name: "ラットプルダウン", weight: 45, reps: 10 },
+      { name: "スクワット", weight: 80, reps: 10 },
+      { name: "ショルダープレス", weight: 30, reps: 10 }
+    ];
+    let currentIndex = 0;
+    let currentWeight = exercises[currentIndex].weight;
+    let isSessionActive = false;
+    
+    // アプリの状態管理（'workout' または 'weight'）
+    let appMode = 'workout'; 
+
+    const bgm = document.getElementById('bgm');
+    const logContainer = document.getElementById('log-container');
+    const uiName = document.getElementById('ui-name');
+    const uiWeight = document.getElementById('ui-weight');
+    const uiReps = document.getElementById('ui-reps');
+    const uiModeBadge = document.getElementById('ui-mode-badge');
+
+    function updateUI() {
+      uiName.textContent = exercises[currentIndex].name;
+      uiReps.textContent = exercises[currentIndex].reps;
+      uiWeight.textContent = currentWeight;
+
+      if (appMode === 'workout') {
+        uiModeBadge.textContent = '🟢 ワークアウト中';
+        uiModeBadge.className = 'status-badge mode-workout';
+        uiWeight.className = '';
+      } else {
+        uiModeBadge.textContent = '🔴 重量変更モード';
+        uiModeBadge.className = 'status-badge mode-weight';
+        uiWeight.className = 'weight-highlight';
+      }
+    }
+
+    function logEvent(message) {
+      const timeStr = new Date().toLocaleTimeString('ja-JP');
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+      entry.textContent = `[${timeStr}] ${message}`;
+      logContainer.prepend(entry);
+    }
+
+    function speakText(text) {
+      if (!window.speechSynthesis) return;
+      window.speechSynthesis.cancel();
+      const msg = new SpeechSynthesisUtterance(text);
+      msg.lang = 'ja-JP';
+      msg.rate = 1.15;
+      window.speechSynthesis.speak(msg);
+    }
+
+    // Media Session API の設定（iOS対策反映版）
+    function setupMediaSession() {
+      if (!('mediaSession' in navigator)) return;
+
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: 'Gym AI ワークアウト',
+        artist: 'モード切替検証',
+        artwork: [{ src: 'https://via.placeholder.com/512/121212/4ade80?text=GymAI', sizes: '512x512', type: 'image/png' }]
+      });
+
+      // ★iOS Safari対策: トラックの長さを明示してスキップボタンを有効化しやすくする
+      if ('setPositionState' in navigator.mediaSession) {
+        navigator.mediaSession.setPositionState({
+          duration: 3600, // ダミーで1時間の長さがあるように見せかける
+          playbackRate: 1,
+          position: 0
+        });
+      }
+
+      // 1. 再生・停止ボタンのアクション
+      const playPauseAction = () => {
+        bgm.play().catch(e => console.log(e)); // 常に再生維持
+
+        if (appMode === 'workout') {
+          logEvent(`⏯ [通常] セット完了`);
+          speakText(`セット完了。インターバルを開始します。`);
+        } else if (appMode === 'weight') {
+          appMode = 'workout';
+          exercises[currentIndex].weight = currentWeight; // 変更を保存
+          updateUI();
+          logEvent(`⏯ [重量] 確定 ➔ ${currentWeight}kgで通常モードへ復帰`);
+          speakText(`重量を${currentWeight}キロに確定しました。ワークアウトに戻ります。`);
+        }
+      };
+      navigator.mediaSession.setActionHandler('play', playPauseAction);
+      navigator.mediaSession.setActionHandler('pause', playPauseAction);
+
+      // 2. スキップボタン（Next）のアクション
+      navigator.mediaSession.setActionHandler('nexttrack', () => {
+        bgm.play().catch(e => console.log(e)); // 念のため再生維持
+        if (appMode === 'workout') {
+          appMode = 'weight';
+          updateUI();
+          logEvent(`⏭ [通常] モード切替 ➔ 重量変更モードへ`);
+          speakText('重量変更モード。スキップでプラス、戻るでマイナス、再生ボタンで確定です。');
+        } else if (appMode === 'weight') {
+          currentWeight += 5;
+          updateUI();
+          logEvent(`⏭ [重量] +5kg ➔ ${currentWeight}kg`);
+          speakText(`${currentWeight}キロ`);
+        }
+      });
+
+      // 3. 戻るボタン（Prev）のアクション
+      navigator.mediaSession.setActionHandler('previoustrack', () => {
+        bgm.play().catch(e => console.log(e)); // 念のため再生維持
+        if (appMode === 'workout') {
+          currentIndex = (currentIndex + 1) % exercises.length;
+          currentWeight = exercises[currentIndex].weight;
+          updateUI();
+          logEvent(`⏮ [通常] 種目変更 ➔ ${exercises[currentIndex].name}`);
+          speakText(`種目を変更します。次は${exercises[currentIndex].name}、${currentWeight}キロです。`);
+        } else if (appMode === 'weight') {
+          currentWeight = Math.max(0, currentWeight - 5);
+          updateUI();
+          logEvent(`⏮ [重量] -5kg ➔ ${currentWeight}kg`);
+          speakText(`${currentWeight}キロ`);
+        }
+      });
+    }
+
+    // ★重要: 開始ボタンの処理順序を変更
+    document.getElementById('btn-start').addEventListener('click', async () => {
+      if (isSessionActive) return;
+      try {
+        // 1. まずBGMを再生する（iOSのロックを解除）
+        await bgm.play();
+        
+        // 2. 再生が成功した直後に Media Session を登録する
+        setupMediaSession();
+        
+        // 3. TTSのアンロック
+        const unlockMsg = new SpeechSynthesisUtterance('');
+        window.speechSynthesis.speak(unlockMsg);
+
+        isSessionActive = true;
+        updateUI();
+        const btn = document.getElementById('btn-start');
+        btn.textContent = '✅ セッション稼働中';
+        btn.style.backgroundColor = '#333';
+        btn.style.color = '#fff';
+        
+        logEvent('✅ 起動完了。イヤホンで操作してください。');
+        speakText('ワークアウトを開始します。最初の種目は' + exercises[currentIndex].name + 'です。');
+      } catch (err) {
+        logEvent(`❌ エラー: ${err.name} - ${err.message}`);
+      }
+    });
+
+    updateUI();
+  </script>
+</body>
+</html>
