@@ -1,48 +1,48 @@
 // ============================================================================
-// Button Control Verification Application
+// Button Control Verification Application (MethodChannel + Audio Ducking Edition)
 // ============================================================================
 //
-// DEPENDENCIES:
-// Add the following dependencies to your pubspec.yaml:
+// 【pubspec.yaml への追加パッケージ指定】
+// このファイルを動作させるには、pubspec.yaml の dependencies に以下の2つのパッケージが
+// 必要です。追記後、`flutter pub get` を実行してください：
 //
 // dependencies:
 //   flutter:
 //     sdk: flutter
 //   flutter_tts: ^4.2.5
-//   cupertino_icons: ^1.0.8
+//   audio_session: ^0.2.4
 //
-// dev_dependencies:
-//   flutter_test:
-//     sdk: flutter
-//   flutter_lints: ^6.0.0
-//
-// PLATFORM CONFIGURATION:
-// 1. Android Configuration (Android 11+ / API 30+ Package Visibility):
-//    Add the following <queries> element inside <manifest> (outside <application>)
-//    in android/app/src/main/AndroidManifest.xml:
-//
+// 【Android ネイティブ設定の補足】
+// 1. MainActivity.kt 側で MethodChannel("com.example.noukin/key_events") を定義し、
+//    dispatchKeyEvent で対象キーコード（85, 79, 24, 25, 87, 88）を invokeMethod("onKeyEvent", keyCode)
+//    として送信してください。
+// 2. Android 11 (API 30) 以降で音声読み上げ（TTS）を利用するため、
+//    android/app/src/main/AndroidManifest.xml の <manifest> 直下に以下を追加してください：
 //    <queries>
 //        <intent>
 //            <action android:name="android.intent.action.TTS_SERVICE" />
 //        </intent>
 //    </queries>
 //
-// 2. iOS Configuration (Audio Session & Silent Mode Playback):
-//    Handled programmatically in FlutterTtsService.initialize() via AVAudioSession:
-//    - setSharedInstance(true)
-//    - setIosAudioCategory(playback, [allowBluetooth, allowBluetoothA2DP, mixWithOthers, defaultToSpeaker])
-//
-// 3. Automated Test Dependency Decoupling:
-//    The application uses an abstract TtsService interface.
-//    In production: FlutterTtsService connects to native TTS engines via flutter_tts.
-//    In automated widget tests: FakeTtsService is injected into ButtonControlApp(ttsService: fakeTts)
-//    to enable headless testing without MissingPluginException.
+// 【オーディオダッキング（BGM自動減衰・復帰）の仕組み】
+// - `audio_session` と `flutter_tts` を連携し、Android では `AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK`、
+//   iOS では `AVAudioSessionCategoryOptions.duckOthers` を要求します。
+// - `speak()` 実行直前にダッキング（オーディオフォーカス取得）を有効化し、
+//   発話完了（setCompletionHandler）・中断（setCancelHandler）・エラー（setErrorHandler）時に
+//   オーディオフォーカスを解除してバックグラウンドBGMの音量を元に戻します。
+// - 発話途中に次のボタンが押された場合は、前の発話を停止して一度オーディオフォーカスを解除
+//   （BGM音量を復帰）したうえで、次の発話の直前に再度ダッキングを要求します。
 // ============================================================================
 
+import 'dart:async';
+import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+
+/// Android ネイティブ層（MainActivity.kt）と通信する MethodChannel 名
+const String kKeyEventsChannelName = 'com.example.noukin/key_events';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -50,50 +50,211 @@ void main() {
 }
 
 // ----------------------------------------------------------------------------
-// 1. TTS Abstraction Layer
+// 1. オーディオダッキング制御レイヤー（audio_session 連携）
 // ----------------------------------------------------------------------------
 
-/// Abstract interface for Text-To-Speech audio feedback.
+/// BGM の音量を一時的に下げる（ダッキング）制御のインターフェース
+abstract class AudioDuckingController {
+  Future<void> configure();
+  Future<void> requestDucking();
+  Future<void> releaseDucking();
+}
+
+/// `audio_session` パッケージを用いて OS にオーディオフォーカス（ダッキング）を要求・解除する本番実装
+class AudioSessionDuckingController implements AudioDuckingController {
+  AudioSession? _session;
+  bool _isConfigured = false;
+
+  @override
+  Future<void> configure() async {
+    if (_isConfigured) return;
+    try {
+      final session = await AudioSession.instance;
+      await session.configure(
+        AudioSessionConfiguration(
+          // iOS: マナーモードでも再生可能な playback カテゴリ + 純粋なダッキング (duckOthers)
+          avAudioSessionCategory: AVAudioSessionCategory.playback,
+          avAudioSessionCategoryOptions:
+              AVAudioSessionCategoryOptions.duckOthers |
+              AVAudioSessionCategoryOptions.allowBluetooth |
+              AVAudioSessionCategoryOptions.allowBluetoothA2dp,
+          avAudioSessionMode: AVAudioSessionMode.defaultMode,
+          avAudioSessionSetActiveOptions:
+              AVAudioSessionSetActiveOptions.notifyOthersOnDeactivation,
+          // Android: AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK による一時減衰（音楽・ラジオ等を止めずに減衰）
+          androidAudioAttributes: const AndroidAudioAttributes(
+            contentType: AndroidAudioContentType.music,
+            usage: AndroidAudioUsage.assistanceNavigationGuidance,
+          ),
+          androidAudioFocusGainType:
+              AndroidAudioFocusGainType.gainTransientMayDuck,
+          androidWillPauseWhenDucked: false,
+        ),
+      );
+      _session = session;
+      _isConfigured = true;
+    } catch (e) {
+      debugPrint('AudioSessionDuckingController.configure error: $e');
+    }
+  }
+
+  @override
+  Future<void> requestDucking() async {
+    try {
+      if (!_isConfigured) {
+        await configure();
+      }
+      await _session?.setActive(true);
+    } catch (e) {
+      debugPrint('AudioSessionDuckingController.requestDucking error: $e');
+    }
+  }
+
+  @override
+  Future<void> releaseDucking() async {
+    try {
+      await _session?.setActive(
+        false,
+        avAudioSessionSetActiveOptions:
+            AVAudioSessionSetActiveOptions.notifyOthersOnDeactivation,
+      );
+    } catch (e) {
+      debugPrint('AudioSessionDuckingController.releaseDucking error: $e');
+    }
+  }
+}
+
+/// 自動テスト検証用のダッキングコントローラ（要求・解除履歴を記録）
+class FakeAudioDuckingController implements AudioDuckingController {
+  final List<String> events = [];
+  bool isConfigured = false;
+  bool isCurrentlyDucked = false;
+
+  @override
+  Future<void> configure() async {
+    isConfigured = true;
+    events.add('configure');
+  }
+
+  @override
+  Future<void> requestDucking() async {
+    if (!isConfigured) {
+      await configure();
+    }
+    isCurrentlyDucked = true;
+    events.add('requestDucking');
+  }
+
+  @override
+  Future<void> releaseDucking() async {
+    isCurrentlyDucked = false;
+    events.add('releaseDucking');
+  }
+}
+
+// ----------------------------------------------------------------------------
+// 2. TTS（音声読み上げ）サービス抽象化レイヤー
+// ----------------------------------------------------------------------------
+
+/// 音声読み上げ機能のインターフェース
 abstract class TtsService {
   Future<void> initialize();
   Future<void> speak(String text);
   Future<void> stop();
 }
 
-/// Production implementation of [TtsService] utilizing the [FlutterTts] plugin.
-/// Includes defensive try/catch error handling around native channel invocations.
+/// 実機・エミュレータ動作時に flutter_tts とオーディオダッキングを連携させる本番用クラス
 class FlutterTtsService implements TtsService {
   final FlutterTts _flutterTts;
-  bool _isInitialized = false;
+  final AudioDuckingController _duckingController;
 
-  FlutterTtsService({FlutterTts? tts}) : _flutterTts = tts ?? FlutterTts();
+  bool _isInitialized = false;
+  bool _isSpeaking = false;
+  bool _isDucked = false;
+  Completer<void>? _cancelCompleter;
+
+  FlutterTtsService({
+    FlutterTts? tts,
+    AudioDuckingController? duckingController,
+  }) : _flutterTts = tts ?? FlutterTts(),
+       _duckingController =
+           duckingController ?? AudioSessionDuckingController();
 
   @override
   Future<void> initialize() async {
     if (_isInitialized) return;
     try {
-      await _flutterTts.setLanguage("ja-JP");
+      await _duckingController.configure();
+
+      await _flutterTts.setLanguage('ja-JP');
       await _flutterTts.setSpeechRate(0.5);
       await _flutterTts.setVolume(1.0);
       await _flutterTts.setPitch(1.0);
-      await _flutterTts.awaitSpeakCompletion(true);
+      await _flutterTts.awaitSpeakCompletion(false);
 
-      if (defaultTargetPlatform == TargetPlatform.iOS) {
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        await _flutterTts.setAudioAttributesForNavigation();
+      } else if (defaultTargetPlatform == TargetPlatform.iOS) {
         await _flutterTts.setSharedInstance(true);
+        await _flutterTts.autoStopSharedSession(false);
         await _flutterTts.setIosAudioCategory(
           IosTextToSpeechAudioCategory.playback,
           [
+            IosTextToSpeechAudioCategoryOptions.duckOthers,
             IosTextToSpeechAudioCategoryOptions.allowBluetooth,
             IosTextToSpeechAudioCategoryOptions.allowBluetoothA2DP,
-            IosTextToSpeechAudioCategoryOptions.mixWithOthers,
-            IosTextToSpeechAudioCategoryOptions.defaultToSpeaker,
           ],
         );
       }
+
+      // 発話完了時：オーディオフォーカスを解除し BGM 音量を元に戻す
+      _flutterTts.setCompletionHandler(() {
+        _isSpeaking = false;
+        unawaited(_releaseDuckingIfNeeded());
+      });
+
+      // 発話中断時：オーディオフォーカスを解除し BGM 音量を元に戻す
+      _flutterTts.setCancelHandler(() {
+        _isSpeaking = false;
+        final future = _releaseDuckingIfNeeded();
+        if (_cancelCompleter != null && !_cancelCompleter!.isCompleted) {
+          future.whenComplete(() {
+            if (_cancelCompleter != null && !_cancelCompleter!.isCompleted) {
+              _cancelCompleter!.complete();
+            }
+          });
+        }
+      });
+
+      // エラー発生時：オーディオフォーカスを解除し BGM 音量を元に戻す
+      _flutterTts.setErrorHandler((dynamic message) {
+        debugPrint('FlutterTts errorHandler: $message');
+        _isSpeaking = false;
+        final future = _releaseDuckingIfNeeded();
+        if (_cancelCompleter != null && !_cancelCompleter!.isCompleted) {
+          future.whenComplete(() {
+            if (_cancelCompleter != null && !_cancelCompleter!.isCompleted) {
+              _cancelCompleter!.complete();
+            }
+          });
+        }
+      });
+
       _isInitialized = true;
     } catch (e) {
-      debugPrint("FlutterTtsService.initialize error: $e");
+      debugPrint('FlutterTtsService.initialize error: $e');
     }
+  }
+
+  Future<void> _requestDucking() async {
+    _isDucked = true;
+    await _duckingController.requestDucking();
+  }
+
+  Future<void> _releaseDuckingIfNeeded() async {
+    if (!_isDucked) return;
+    _isDucked = false;
+    await _duckingController.releaseDucking();
   }
 
   @override
@@ -102,26 +263,46 @@ class FlutterTtsService implements TtsService {
       if (!_isInitialized) {
         await initialize();
       }
-      // Interrupt ongoing utterance immediately for low-latency tactile feedback
-      await _flutterTts.stop();
+
+      // 前の読み上げが進行中の場合は停止し、一度オーディオフォーカスを解除して BGM 音量を戻す
+      if (_isSpeaking || _isDucked) {
+        final completer = Completer<void>();
+        _cancelCompleter = completer;
+        _isSpeaking = false;
+        await _flutterTts.stop();
+        await completer.future.timeout(
+          const Duration(milliseconds: 80),
+          onTimeout: () {},
+        );
+        _cancelCompleter = null;
+        await _releaseDuckingIfNeeded();
+      }
+
+      // speak() 呼び出し直前にダッキングを有効化し、BGM の音量を減衰させる
+      await _requestDucking();
+      _isSpeaking = true;
       await _flutterTts.speak(text);
     } catch (e) {
-      debugPrint("FlutterTtsService.speak error: $e");
+      debugPrint('FlutterTtsService.speak error: $e');
+      _isSpeaking = false;
+      await _releaseDuckingIfNeeded();
     }
   }
 
   @override
   Future<void> stop() async {
     try {
+      _isSpeaking = false;
       await _flutterTts.stop();
     } catch (e) {
-      debugPrint("FlutterTtsService.stop error: $e");
+      debugPrint('FlutterTtsService.stop error: $e');
+    } finally {
+      await _releaseDuckingIfNeeded();
     }
   }
 }
 
-/// In-memory test fake implementation of [TtsService] for headless widget tests.
-/// Eliminates native platform channel dependencies while recording spoken phrases.
+/// UI ウィジェットテスト用のインメモリ TTS サービス
 class FakeTtsService implements TtsService {
   final List<String> spokenHistory = [];
   bool isInitialized = false;
@@ -154,109 +335,75 @@ class FakeTtsService implements TtsService {
 }
 
 // ----------------------------------------------------------------------------
-// 2. Action & Log Domain Models
+// 3. キーコード定義・ログモデル
 // ----------------------------------------------------------------------------
 
-/// Standardized action definitions for target physical and earphone media buttons.
+/// 検知対象の6種類の物理ボタン・メディアキー定義
 enum ButtonAction {
   volumeUp(
+    keyCode: 24,
     keyName: 'KEYCODE_VOLUME_UP',
-    displayLabel: 'Volume Up',
-    speechText: '音量アップを受信しました',
+    speechText: '音量アップを検知しました',
     icon: Icons.volume_up,
   ),
   volumeDown(
+    keyCode: 25,
     keyName: 'KEYCODE_VOLUME_DOWN',
-    displayLabel: 'Volume Down',
-    speechText: '音量ダウンを受信しました',
+    speechText: '音量ダウンを検知しました',
     icon: Icons.volume_down,
   ),
   mediaPlayPause(
+    keyCode: 85,
     keyName: 'KEYCODE_MEDIA_PLAY_PAUSE',
-    displayLabel: 'Play / Pause',
-    speechText: '再生・停止ボタンが押されました',
+    speechText: '再生・停止ボタンを検知しました',
     icon: Icons.play_circle_filled,
   ),
+  headsetHook(
+    keyCode: 79,
+    keyName: 'KEYCODE_HEADSETHOOK',
+    speechText: '再生・停止ボタンを検知しました',
+    icon: Icons.headset_mic,
+  ),
   mediaNext(
+    keyCode: 87,
     keyName: 'KEYCODE_MEDIA_NEXT',
-    displayLabel: 'Next Track',
-    speechText: '次の曲ボタンを受信しました',
+    speechText: '曲送りを検知しました',
     icon: Icons.skip_next,
   ),
   mediaPrevious(
+    keyCode: 88,
     keyName: 'KEYCODE_MEDIA_PREVIOUS',
-    displayLabel: 'Previous Track',
-    speechText: '前の曲ボタンを受信しました',
+    speechText: '曲戻しを検知しました',
     icon: Icons.skip_previous,
   );
 
+  final int keyCode;
   final String keyName;
-  final String displayLabel;
   final String speechText;
   final IconData icon;
 
   const ButtonAction({
+    required this.keyCode,
     required this.keyName,
-    required this.displayLabel,
     required this.speechText,
     required this.icon,
   });
 
-  /// Maps a [KeyEvent] to a corresponding [ButtonAction].
-  /// Matches against [LogicalKeyboardKey] first, then falls back to [PhysicalKeyboardKey].
-  static ButtonAction? fromKeyEvent(KeyEvent event) {
-    return fromLogicalKey(event.logicalKey) ?? fromPhysicalKey(event.physicalKey);
-  }
+  /// ボタン名とキーコードを合わせた表示文字列（例: "KEYCODE_VOLUME_UP (24)"）
+  String get labelWithCode => '$keyName ($keyCode)';
 
-  /// Maps [LogicalKeyboardKey] to corresponding [ButtonAction].
-  static ButtonAction? fromLogicalKey(LogicalKeyboardKey key) {
-    if (key == LogicalKeyboardKey.audioVolumeUp) {
-      return ButtonAction.volumeUp;
-    }
-    if (key == LogicalKeyboardKey.audioVolumeDown) {
-      return ButtonAction.volumeDown;
-    }
-    if (key == LogicalKeyboardKey.mediaPlayPause ||
-        key == LogicalKeyboardKey.mediaPlay ||
-        key == LogicalKeyboardKey.mediaPause ||
-        key == LogicalKeyboardKey.select) {
-      return ButtonAction.mediaPlayPause;
-    }
-    if (key == LogicalKeyboardKey.mediaTrackNext) {
-      return ButtonAction.mediaNext;
-    }
-    if (key == LogicalKeyboardKey.mediaTrackPrevious) {
-      return ButtonAction.mediaPrevious;
-    }
-    return null;
-  }
-
-  /// Maps [PhysicalKeyboardKey] to corresponding [ButtonAction] (hardware fallback).
-  static ButtonAction? fromPhysicalKey(PhysicalKeyboardKey key) {
-    if (key == PhysicalKeyboardKey.audioVolumeUp) {
-      return ButtonAction.volumeUp;
-    }
-    if (key == PhysicalKeyboardKey.audioVolumeDown) {
-      return ButtonAction.volumeDown;
-    }
-    if (key == PhysicalKeyboardKey.mediaPlayPause ||
-        key == PhysicalKeyboardKey.mediaPlay ||
-        key == PhysicalKeyboardKey.mediaPause ||
-        key == PhysicalKeyboardKey.select ||
-        key == PhysicalKeyboardKey.mediaSelect) {
-      return ButtonAction.mediaPlayPause;
-    }
-    if (key == PhysicalKeyboardKey.mediaTrackNext) {
-      return ButtonAction.mediaNext;
-    }
-    if (key == PhysicalKeyboardKey.mediaTrackPrevious) {
-      return ButtonAction.mediaPrevious;
+  /// Android キーコード（数値）から対応する [ButtonAction] を返す（対象外の番号は null）
+  static ButtonAction? fromKeyCode(int keyCode) {
+    for (final action in ButtonAction.values) {
+      if (action.keyCode == keyCode) {
+        return action;
+      }
     }
     return null;
   }
 }
 
-/// Pure Dart timestamp formatter: HH:mm:ss.SSS
+/// 時刻を HH:mm:ss.SSS 形式に整形する関数
 String formatTimestamp(DateTime dt) {
   final h = dt.hour.toString().padLeft(2, '0');
   final m = dt.minute.toString().padLeft(2, '0');
@@ -265,7 +412,7 @@ String formatTimestamp(DateTime dt) {
   return '$h:$m:$s.$ms';
 }
 
-/// Represents an individual received key event with high-precision timestamp.
+/// 受信した1回分のキーイベント履歴データ
 class KeyEventLog {
   final DateTime timestamp;
   final ButtonAction action;
@@ -276,10 +423,9 @@ class KeyEventLog {
 }
 
 // ----------------------------------------------------------------------------
-// 3. UI Application & State
+// 4. UI アプリケーション & MethodChannel リスナー画面
 // ----------------------------------------------------------------------------
 
-/// Top-level application widget with dark-mode theme configuration.
 class ButtonControlApp extends StatelessWidget {
   final TtsService? ttsService;
 
@@ -314,10 +460,8 @@ class ButtonControlApp extends StatelessWidget {
   }
 }
 
-/// Alias for compatibility with default test templates.
 typedef MyApp = ButtonControlApp;
 
-/// Verification screen hosting key interception, center readout, and real-time log.
 class ButtonControlScreen extends StatefulWidget {
   final TtsService ttsService;
 
@@ -328,6 +472,10 @@ class ButtonControlScreen extends StatefulWidget {
 }
 
 class _ButtonControlScreenState extends State<ButtonControlScreen> {
+  static const MethodChannel _keyEventsChannel = MethodChannel(
+    kKeyEventsChannelName,
+  );
+
   final List<KeyEventLog> _logs = [];
   final ScrollController _scrollController = ScrollController();
   ButtonAction? _latestAction;
@@ -337,34 +485,44 @@ class _ButtonControlScreenState extends State<ButtonControlScreen> {
   void initState() {
     super.initState();
     widget.ttsService.initialize();
-    // Register global hardware key listener
-    HardwareKeyboard.instance.addHandler(_handleKeyEvent);
+    // Android ネイティブ層からのキーイベント通知を受け取るリスナーを登録
+    _keyEventsChannel.setMethodCallHandler(_handleMethodCall);
   }
 
   @override
   void dispose() {
-    // Clean up hardware keyboard listener and controllers
-    HardwareKeyboard.instance.removeHandler(_handleKeyEvent);
+    _keyEventsChannel.setMethodCallHandler(null);
     _scrollController.dispose();
     widget.ttsService.stop();
     super.dispose();
   }
 
-  /// Global KeyEvent handler. Filters strictly for KeyDownEvent to prevent duplicate triggers.
-  bool _handleKeyEvent(KeyEvent event) {
-    if (event is! KeyDownEvent) {
+  /// MethodChannel 経由で届いたキーコードを解析し、対象キーであれば処理する
+  Future<dynamic> _handleMethodCall(MethodCall call) async {
+    int? keyCode;
+    final args = call.arguments;
+    if (args is int) {
+      keyCode = args;
+    } else if (args is Map) {
+      final raw = args['keyCode'];
+      if (raw is int) {
+        keyCode = raw;
+      }
+    }
+
+    if (keyCode == null) {
       return false;
     }
 
-    final action = ButtonAction.fromKeyEvent(event);
+    final action = ButtonAction.fromKeyCode(keyCode);
     if (action != null) {
       _processAction(action);
-      return true; // Mark as handled
+      return true;
     }
-    return false; // Allow unhandled keys to propagate normally
+    return false;
   }
 
-  /// Updates UI state, triggers speech synthesis, and auto-scrolls the log.
+  /// 画面表示・ログ一覧を更新し、即座に音声読み上げを実行する
   void _processAction(ButtonAction action) {
     final now = DateTime.now();
     setState(() {
@@ -375,7 +533,7 @@ class _ButtonControlScreenState extends State<ButtonControlScreen> {
 
     widget.ttsService.speak(action.speechText);
 
-    // Auto-scroll to latest log entry
+    // 新しいログが見えるよう最下部へ自動スクロール
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (_scrollController.hasClients) {
@@ -404,35 +562,31 @@ class _ButtonControlScreenState extends State<ButtonControlScreen> {
           IconButton(
             key: const Key('clear_logs_button'),
             icon: const Icon(Icons.delete_outline),
-            tooltip: 'Clear Logs',
+            tooltip: 'ログをクリア',
             onPressed: _logs.isEmpty ? null : _clearLogs,
           ),
         ],
       ),
-      body: Focus(
-        autofocus: true,
-        child: Column(
-          children: [
-            // Center large key readout area (flex: 5)
-            Expanded(
-              flex: 5,
-              child: _buildCenterDisplay(),
-            ),
-            const Divider(height: 1, color: Color(0xFF333333)),
-            // Real-time log header
-            _buildLogHeader(),
-            // Scrollable real-time log list (flex: 5)
-            Expanded(
-              flex: 5,
-              child: _buildLogList(),
-            ),
-          ],
-        ),
+      body: Column(
+        children: [
+          // 画面中央：直前に検知したボタン名とキーコードを巨大表示
+          Expanded(
+            flex: 5,
+            child: _buildCenterDisplay(),
+          ),
+          const Divider(height: 1, color: Color(0xFF333333)),
+          // ログヘッダー
+          _buildLogHeader(),
+          // 画面下部：タイムスタンプ付き受信ログ一覧（スクロール可能）
+          Expanded(
+            flex: 5,
+            child: _buildLogList(),
+          ),
+        ],
       ),
     );
   }
 
-  /// Builds the large central readout for the most recently detected key.
   Widget _buildCenterDisplay() {
     if (_latestAction == null) {
       return const Center(
@@ -445,7 +599,7 @@ class _ButtonControlScreenState extends State<ButtonControlScreen> {
               Icon(Icons.touch_app_outlined, size: 56, color: Colors.grey),
               SizedBox(height: 12),
               Text(
-                'ボタンを押してください',
+                'ボタン入力を待機中...',
                 style: TextStyle(
                   fontSize: 22,
                   color: Colors.grey,
@@ -454,8 +608,8 @@ class _ButtonControlScreenState extends State<ButtonControlScreen> {
               ),
               SizedBox(height: 6),
               Text(
-                'Volume Up/Down または イヤホンボタン',
-                style: TextStyle(fontSize: 14, color: Colors.white54),
+                '音量ボタン / イヤホンボタン / adb input keyevent',
+                style: TextStyle(fontSize: 13, color: Colors.white54),
               ),
             ],
           ),
@@ -479,14 +633,25 @@ class _ButtonControlScreenState extends State<ButtonControlScreen> {
                 action.keyName,
                 key: const Key('center_key_name'),
                 style: const TextStyle(
-                  fontSize: 28,
+                  fontSize: 30,
                   fontWeight: FontWeight.bold,
                   color: Colors.tealAccent,
-                  letterSpacing: 1.2,
+                  letterSpacing: 1.1,
                 ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 6),
+              Text(
+                'KeyCode: ${action.keyCode}',
+                key: const Key('center_key_code'),
+                style: const TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.amberAccent,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
               Text(
                 action.speechText,
                 key: const Key('center_speech_text'),
@@ -509,7 +674,6 @@ class _ButtonControlScreenState extends State<ButtonControlScreen> {
     );
   }
 
-  /// Builds the header bar above the log list showing total event count and clear action.
   Widget _buildLogHeader() {
     return Container(
       color: const Color(0xFF1E1E1E),
@@ -518,7 +682,7 @@ class _ButtonControlScreenState extends State<ButtonControlScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
-            'リアルタイムログ (${_logs.length}件)',
+            '受信ログ一覧 (${_logs.length}件)',
             key: const Key('log_header_count'),
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
           ),
@@ -536,12 +700,11 @@ class _ButtonControlScreenState extends State<ButtonControlScreen> {
     );
   }
 
-  /// Builds the scrollable list of key event records with timestamps.
   Widget _buildLogList() {
     if (_logs.isEmpty) {
       return const Center(
         child: Text(
-          'ログはありません',
+          'まだ受信ログはありません',
           key: Key('empty_log_message'),
           style: TextStyle(color: Colors.white38),
         ),
@@ -562,7 +725,7 @@ class _ButtonControlScreenState extends State<ButtonControlScreen> {
             dense: true,
             leading: Icon(log.action.icon, color: Colors.tealAccent, size: 20),
             title: Text(
-              '[${log.formattedTime}] ${log.action.keyName}',
+              '[${log.formattedTime}] ${log.action.labelWithCode}',
               style: const TextStyle(
                 fontFamily: 'monospace',
                 fontSize: 13,
