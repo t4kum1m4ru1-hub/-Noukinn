@@ -277,6 +277,89 @@ void main() {
       expect(find.text('まだ受信ログはありません'), findsOneWidget);
     });
   });
+
+  group('Widget Tests: TrainingScreen UI & Navigation', () {
+    late FakeTtsService fakeTts;
+
+    setUp(() {
+      fakeTts = FakeTtsService();
+    });
+
+    testWidgets('メイン画面から「トレーニング開始」をタップしてトレーニング画面に遷移し、戻るボタンでメインに戻れること', (tester) async {
+      await tester.pumpWidget(ButtonControlApp(ttsService: fakeTts));
+      await tester.pumpAndSettle();
+
+      final startButton = find.byKey(const Key('start_training_button'));
+      expect(startButton, findsOneWidget);
+      expect(find.text('トレーニング開始'), findsOneWidget);
+
+      await tester.tap(startButton);
+      await tester.pumpAndSettle();
+
+      // トレーニング画面の要素確認
+      expect(find.byType(TrainingScreen), findsOneWidget);
+      expect(find.text('ベンチプレス'), findsOneWidget);
+      expect(find.byKey(const Key('training_back_button')), findsOneWidget);
+      expect(find.byKey(const Key('exercise_image')), findsOneWidget);
+
+      // 戻るボタンをタップ
+      await tester.tap(find.byKey(const Key('training_back_button')));
+      await tester.pumpAndSettle();
+
+      // メイン画面に戻ったことを確認
+      expect(find.byType(TrainingScreen), findsNothing);
+      expect(find.byKey(const Key('waiting_prompt')), findsOneWidget);
+    });
+
+    testWidgets('3つのカード（重量・レップ数・セット数）と音量バーの表示および左右ボタンによる増減が正しく動作すること', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: TrainingScreen(ttsService: fakeTts),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // カードと初期値の検証
+      expect(find.text('重量'), findsOneWidget);
+      expect(find.text('60 kg'), findsOneWidget);
+
+      expect(find.text('レップ数'), findsOneWidget);
+      expect(find.text('10 回'), findsOneWidget);
+
+      expect(find.text('セット数'), findsOneWidget);
+      expect(find.text('1 セット'), findsOneWidget);
+
+      expect(find.text('音声ガイドの音量'), findsOneWidget);
+      expect(find.text('80%'), findsOneWidget);
+
+      // 重量ボタンのテスト (+2.5kg / -2.5kg)
+      await tester.tap(find.byKey(const Key('btn_weight_up')));
+      await tester.pumpAndSettle();
+      expect(find.text('62.5 kg'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('btn_weight_down')));
+      await tester.pumpAndSettle();
+      expect(find.text('60 kg'), findsOneWidget);
+
+      // レップ数ボタンのテスト (+1 / -1)
+      await tester.tap(find.byKey(const Key('btn_reps_up')));
+      await tester.pumpAndSettle();
+      expect(find.text('11 回'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('btn_reps_down')));
+      await tester.pumpAndSettle();
+      expect(find.text('10 回'), findsOneWidget);
+
+      // セット数ボタンのテスト (+1 / -1)
+      await tester.tap(find.byKey(const Key('btn_sets_up')));
+      await tester.pumpAndSettle();
+      expect(find.text('2 セット'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('btn_sets_down')));
+      await tester.pumpAndSettle();
+      expect(find.text('1 セット'), findsOneWidget);
+    });
+  });
 }
 
 class _TimelineDuckingController extends FakeAudioDuckingController {

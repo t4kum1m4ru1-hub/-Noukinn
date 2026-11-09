@@ -40,6 +40,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'training_screen.dart';
+
+export 'training_screen.dart';
 
 /// Android ネイティブ層（MainActivity.kt）と通信する MethodChannel 名
 const String kKeyEventsChannelName = 'com.example.noukin/key_events';
@@ -161,6 +164,7 @@ abstract class TtsService {
   Future<void> initialize();
   Future<void> speak(String text);
   Future<void> stop();
+  Future<void> setVolume(double volume) async {}
 }
 
 /// 実機・エミュレータ動作時に flutter_tts とオーディオダッキングを連携させる本番用クラス
@@ -300,6 +304,15 @@ class FlutterTtsService implements TtsService {
       await _releaseDuckingIfNeeded();
     }
   }
+
+  @override
+  Future<void> setVolume(double volume) async {
+    try {
+      await _flutterTts.setVolume(volume.clamp(0.0, 1.0));
+    } catch (e) {
+      debugPrint('FlutterTtsService.setVolume error: $e');
+    }
+  }
 }
 
 /// UI ウィジェットテスト用のインメモリ TTS サービス
@@ -307,6 +320,7 @@ class FakeTtsService implements TtsService {
   final List<String> spokenHistory = [];
   bool isInitialized = false;
   int stopCallCount = 0;
+  double currentVolume = 1.0;
 
   String? get lastSpoken => spokenHistory.isNotEmpty ? spokenHistory.last : null;
   int get speakCount => spokenHistory.length;
@@ -327,6 +341,11 @@ class FakeTtsService implements TtsService {
   @override
   Future<void> stop() async {
     stopCallCount++;
+  }
+
+  @override
+  Future<void> setVolume(double volume) async {
+    currentVolume = volume;
   }
 
   void clear() {
@@ -569,6 +588,35 @@ class _ButtonControlScreenState extends State<ButtonControlScreen> {
       ),
       body: Column(
         children: [
+          // メイン画面上部のトレーニング開始ボタン
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: ElevatedButton.icon(
+              key: const Key('start_training_button'),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => TrainingScreen(
+                      ttsService: widget.ttsService,
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.fitness_center),
+              label: const Text(
+                'トレーニング開始',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.tealAccent,
+                foregroundColor: Colors.black,
+                minimumSize: const Size.fromHeight(48),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+          ),
           // 画面中央：直前に検知したボタン名とキーコードを巨大表示
           Expanded(
             flex: 5,
