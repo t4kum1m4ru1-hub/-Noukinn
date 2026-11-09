@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:button_controll_test/main.dart';
+import 'package:button_controll_test/review_screen.dart';
 
 /// Android ネイティブ層（MainActivity.kt）からの MethodChannel 呼び出しをシミュレートするヘルパー
 Future<dynamic> sendNativeKeyEvent(
@@ -358,6 +359,69 @@ void main() {
       await tester.tap(find.byKey(const Key('btn_sets_down')));
       await tester.pumpAndSettle();
       expect(find.text('1 セット'), findsOneWidget);
+    });
+
+    testWidgets('「次へ」ボタンでワークアウトが切り替わり、値がリセットされ、最後にレビューページへ遷移してホームに戻れること', (tester) async {
+      await tester.pumpWidget(ButtonControlApp(ttsService: fakeTts));
+      await tester.pumpAndSettle();
+
+      // メイン画面からトレーニング画面へ遷移
+      await tester.tap(find.byKey(const Key('start_training_button')));
+      await tester.pumpAndSettle();
+
+      // 1. ベンチプレスの初期値確認
+      expect(find.text('ベンチプレス'), findsOneWidget);
+      expect(find.text('60 kg'), findsOneWidget);
+      expect(find.text('10 回'), findsOneWidget);
+      expect(find.text('1 セット'), findsOneWidget);
+
+      // 値を変更してみる
+      await tester.ensureVisible(find.byKey(const Key('btn_weight_up')));
+      await tester.tap(find.byKey(const Key('btn_weight_up')));
+      await tester.pumpAndSettle();
+      expect(find.text('62.5 kg'), findsOneWidget);
+
+      // 「次へ」ボタンを押下 -> 2. デッドリフトへ遷移し、デフォルト値にリセットされる
+      final nextButton = find.byKey(const Key('btn_next_workout'));
+      expect(nextButton, findsOneWidget);
+      expect(find.text('次へ'), findsOneWidget);
+
+      await tester.ensureVisible(nextButton);
+      await tester.tap(nextButton);
+      await tester.pumpAndSettle();
+
+      expect(find.text('デッドリフト'), findsOneWidget);
+      expect(find.text('80 kg'), findsOneWidget);
+      expect(find.text('8 回'), findsOneWidget);
+      expect(find.text('1 セット'), findsOneWidget);
+
+      // 「次へ」ボタンを押下 -> 3. レッグプレスへ遷移
+      await tester.ensureVisible(nextButton);
+      await tester.tap(nextButton);
+      await tester.pumpAndSettle();
+
+      expect(find.text('レッグプレス'), findsOneWidget);
+      expect(find.text('100 kg'), findsOneWidget);
+      expect(find.text('12 回'), findsOneWidget);
+      expect(find.text('1 セット'), findsOneWidget);
+
+      // 「次へ」ボタンを押下 -> レビューページへ遷移
+      await tester.ensureVisible(nextButton);
+      await tester.tap(nextButton);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ReviewScreen), findsOneWidget);
+      expect(find.text('レビューページ'), findsNWidgets(2));
+      expect(find.byKey(const Key('btn_finish_workout')), findsOneWidget);
+
+      // 「ワークアウトを終了」を押下 -> ホーム画面に戻る
+      await tester.ensureVisible(find.byKey(const Key('btn_finish_workout')));
+      await tester.tap(find.byKey(const Key('btn_finish_workout')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ReviewScreen), findsNothing);
+      expect(find.byType(TrainingScreen), findsNothing);
+      expect(find.byKey(const Key('waiting_prompt')), findsOneWidget);
     });
   });
 }

@@ -1,5 +1,48 @@
 import 'package:flutter/material.dart';
 import 'main.dart' show TtsService;
+import 'review_screen.dart';
+
+/// ワークアウト種目のデータモデル
+class WorkoutExercise {
+  final String name;
+  final String imagePath;
+  final double defaultWeight;
+  final int defaultReps;
+  final int defaultSets;
+
+  const WorkoutExercise({
+    required this.name,
+    required this.imagePath,
+    required this.defaultWeight,
+    required this.defaultReps,
+    required this.defaultSets,
+  });
+}
+
+/// ワークアウト種目の順番とデフォルト値の定義
+const List<WorkoutExercise> kWorkoutExercises = [
+  WorkoutExercise(
+    name: 'ベンチプレス',
+    imagePath: 'assets/images/workout/bench_press.avif',
+    defaultWeight: 60.0,
+    defaultReps: 10,
+    defaultSets: 1,
+  ),
+  WorkoutExercise(
+    name: 'デッドリフト',
+    imagePath: 'assets/images/workout/dead_lift.avif',
+    defaultWeight: 80.0,
+    defaultReps: 8,
+    defaultSets: 1,
+  ),
+  WorkoutExercise(
+    name: 'レッグプレス',
+    imagePath: 'assets/images/workout/leg_press.avif',
+    defaultWeight: 100.0,
+    defaultReps: 12,
+    defaultSets: 1,
+  ),
+];
 
 /// トレーニング中に表示する専用画面
 class TrainingScreen extends StatefulWidget {
@@ -12,11 +55,44 @@ class TrainingScreen extends StatefulWidget {
 }
 
 class _TrainingScreenState extends State<TrainingScreen> {
-  // トレーニング種目の初期パラメータ
-  double _weight = 60.0; // 重量 (kg)
-  int _reps = 10;        // レップ数 (回)
-  int _sets = 1;         // セット数 (セット)
-  double _volume = 0.8;  // 音声ガイドの音量 (0.0 - 1.0)
+  int _currentExerciseIndex = 0;
+
+  // トレーニング種目のパラメータ
+  late double _weight;
+  late int _reps;
+  late int _sets;
+  double _volume = 0.8; // 音声ガイドの音量 (0.0 - 1.0)
+
+  WorkoutExercise get _currentExercise => kWorkoutExercises[_currentExerciseIndex];
+
+  @override
+  void initState() {
+    super.initState();
+    _resetToCurrentExercise();
+  }
+
+  void _resetToCurrentExercise() {
+    final exercise = _currentExercise;
+    _weight = exercise.defaultWeight;
+    _reps = exercise.defaultReps;
+    _sets = exercise.defaultSets;
+  }
+
+  void _goToNextExercise() {
+    if (_currentExerciseIndex < kWorkoutExercises.length - 1) {
+      setState(() {
+        _currentExerciseIndex++;
+        _resetToCurrentExercise();
+      });
+    } else {
+      // 最後の種目の次はレビュー画面へ遷移
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => const ReviewScreen(),
+        ),
+      );
+    }
+  }
 
   void _decreaseWeight() {
     setState(() {
@@ -78,6 +154,8 @@ class _TrainingScreenState extends State<TrainingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final currentExercise = _currentExercise;
+
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
       appBar: AppBar(
@@ -89,10 +167,10 @@ class _TrainingScreenState extends State<TrainingScreen> {
           tooltip: 'メイン画面へ戻る',
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: const Text(
-          'ベンチプレス',
-          key: Key('exercise_title'),
-          style: TextStyle(
+        title: Text(
+          currentExercise.name,
+          key: const Key('exercise_title'),
+          style: const TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.bold,
             letterSpacing: 1.1,
@@ -119,7 +197,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(16),
                               child: Image.asset(
-                                'assets/images/workout/bench_press.avif',
+                                currentExercise.imagePath,
                                 key: const Key('exercise_image'),
                                 fit: BoxFit.contain,
                                 errorBuilder: (context, error, stackTrace) {
@@ -132,27 +210,27 @@ class _TrainingScreenState extends State<TrainingScreen> {
                                       borderRadius: BorderRadius.circular(16),
                                       border: Border.all(color: const Color(0xFF2E2E2E)),
                                     ),
-                                    child: const Column(
+                                    child: Column(
                                       mainAxisAlignment: MainAxisAlignment.center,
                                       children: [
-                                        Icon(
+                                        const Icon(
                                           Icons.fitness_center,
                                           size: 64,
                                           color: Colors.tealAccent,
                                         ),
-                                        SizedBox(height: 10),
+                                        const SizedBox(height: 10),
                                         Text(
-                                          'ベンチプレス',
-                                          style: TextStyle(
+                                          currentExercise.name,
+                                          style: const TextStyle(
                                             fontSize: 18,
                                             fontWeight: FontWeight.bold,
                                             color: Colors.white,
                                           ),
                                         ),
-                                        SizedBox(height: 4),
+                                        const SizedBox(height: 4),
                                         Text(
-                                          'assets/images/workout/bench_press.avif',
-                                          style: TextStyle(
+                                          currentExercise.imagePath,
+                                          style: const TextStyle(
                                             fontSize: 12,
                                             color: Colors.white38,
                                           ),
@@ -162,6 +240,29 @@ class _TrainingScreenState extends State<TrainingScreen> {
                                   );
                                 },
                               ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      // 中央画像のすぐ下：横幅いっぱいの「次へ」ボタン
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12.0),
+                        child: ElevatedButton(
+                          key: const Key('btn_next_workout'),
+                          onPressed: _goToNextExercise,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.tealAccent,
+                            foregroundColor: Colors.black,
+                            minimumSize: const Size.fromHeight(50),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            '次へ',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),
@@ -345,4 +446,3 @@ class _TrainingScreenState extends State<TrainingScreen> {
     );
   }
 }
-
