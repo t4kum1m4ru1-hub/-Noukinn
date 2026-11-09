@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'main.dart' show TtsService;
 import 'review_screen.dart';
+import 'theme/app_colors.dart';
 
 /// ワークアウト種目のデータモデル
 class WorkoutExercise {
@@ -157,9 +158,9 @@ class _TrainingScreenState extends State<TrainingScreen> {
     final currentExercise = _currentExercise;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF121212),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1E1E1E),
+        backgroundColor: AppColors.surface,
         elevation: 0,
         leading: IconButton(
           key: const Key('training_back_button'),
@@ -206,9 +207,9 @@ class _TrainingScreenState extends State<TrainingScreen> {
                                     width: double.infinity,
                                     height: 220,
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFF1E1E1E),
+                                      color: AppColors.surface,
                                       borderRadius: BorderRadius.circular(16),
-                                      border: Border.all(color: const Color(0xFF2E2E2E)),
+                                      border: Border.all(color: AppColors.border),
                                     ),
                                     child: Column(
                                       mainAxisAlignment: MainAxisAlignment.center,
@@ -216,7 +217,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
                                         const Icon(
                                           Icons.fitness_center,
                                           size: 64,
-                                          color: Colors.tealAccent,
+                                          color: AppColors.tealAccent,
                                         ),
                                         const SizedBox(height: 10),
                                         Text(
@@ -224,7 +225,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
                                           style: const TextStyle(
                                             fontSize: 18,
                                             fontWeight: FontWeight.bold,
-                                            color: Colors.white,
+                                            color: AppColors.textPrimary,
                                           ),
                                         ),
                                         const SizedBox(height: 4),
@@ -232,7 +233,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
                                           currentExercise.imagePath,
                                           style: const TextStyle(
                                             fontSize: 12,
-                                            color: Colors.white38,
+                                            color: AppColors.textTertiary,
                                           ),
                                         ),
                                       ],
@@ -244,16 +245,17 @@ class _TrainingScreenState extends State<TrainingScreen> {
                           ),
                         ),
                       ),
-                      // 中央画像のすぐ下：横幅いっぱいの「次へ」ボタン
+                      // 中央画像のすぐ下：横幅いっぱいの「次へ」ボタン（画面で最も目立つアクセントカラー）
                       Padding(
                         padding: const EdgeInsets.only(bottom: 12.0),
                         child: ElevatedButton(
                           key: const Key('btn_next_workout'),
                           onPressed: _goToNextExercise,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.tealAccent,
-                            foregroundColor: Colors.black,
+                            backgroundColor: AppColors.primaryAccent,
+                            foregroundColor: AppColors.onPrimaryAccent,
                             minimumSize: const Size.fromHeight(50),
+                            elevation: 4,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -320,11 +322,11 @@ class _TrainingScreenState extends State<TrainingScreen> {
   }) {
     return Card(
       key: cardKey,
-      color: const Color(0xFF1E1E1E),
+      color: AppColors.surface,
       margin: const EdgeInsets.symmetric(vertical: 4),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
-        side: const BorderSide(color: Color(0xFF2E2E2E)),
+        side: const BorderSide(color: AppColors.border),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -336,8 +338,8 @@ class _TrainingScreenState extends State<TrainingScreen> {
               icon: const Icon(Icons.remove),
               onPressed: onDown,
               style: IconButton.styleFrom(
-                backgroundColor: const Color(0xFF2C2C2C),
-                foregroundColor: Colors.tealAccent,
+                backgroundColor: AppColors.surfaceVariant,
+                foregroundColor: AppColors.tealAccent,
                 minimumSize: const Size(44, 44),
               ),
             ),
@@ -348,7 +350,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
                   label,
                   style: const TextStyle(
                     fontSize: 13,
-                    color: Colors.white70,
+                    color: AppColors.textSecondary,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -358,7 +360,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
                   style: const TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
-                    color: Colors.tealAccent,
+                    color: AppColors.tealAccent,
                     letterSpacing: 0.5,
                   ),
                 ),
@@ -369,8 +371,8 @@ class _TrainingScreenState extends State<TrainingScreen> {
               icon: const Icon(Icons.add),
               onPressed: onUp,
               style: IconButton.styleFrom(
-                backgroundColor: const Color(0xFF2C2C2C),
-                foregroundColor: Colors.tealAccent,
+                backgroundColor: AppColors.surfaceVariant,
+                foregroundColor: AppColors.tealAccent,
                 minimumSize: const Size(44, 44),
               ),
             ),
@@ -385,11 +387,11 @@ class _TrainingScreenState extends State<TrainingScreen> {
     final percent = (_volume * 100).round();
     return Card(
       key: const Key('card_volume'),
-      color: const Color(0xFF1E1E1E),
+      color: AppColors.surface,
       margin: const EdgeInsets.only(top: 4, bottom: 8),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
-        side: const BorderSide(color: Color(0xFF2E2E2E)),
+        side: const BorderSide(color: AppColors.border),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -401,13 +403,13 @@ class _TrainingScreenState extends State<TrainingScreen> {
               children: [
                 const Row(
                   children: [
-                    Icon(Icons.volume_up, size: 18, color: Colors.white70),
+                    Icon(Icons.volume_up, size: 18, color: AppColors.textSecondary),
                     SizedBox(width: 6),
                     Text(
                       '音声ガイドの音量',
                       style: TextStyle(
                         fontSize: 13,
-                        color: Colors.white70,
+                        color: AppColors.textSecondary,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -419,17 +421,17 @@ class _TrainingScreenState extends State<TrainingScreen> {
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
-                    color: Colors.tealAccent,
+                    color: AppColors.tealAccent,
                   ),
                 ),
               ],
             ),
             SliderTheme(
               data: SliderTheme.of(context).copyWith(
-                activeTrackColor: Colors.tealAccent,
-                inactiveTrackColor: const Color(0xFF333333),
-                thumbColor: Colors.tealAccent,
-                overlayColor: Colors.tealAccent.withAlpha(50),
+                activeTrackColor: AppColors.tealAccent,
+                inactiveTrackColor: AppColors.trackInactive,
+                thumbColor: AppColors.tealAccent,
+                overlayColor: AppColors.tealAccent.withAlpha(50),
                 trackHeight: 4,
               ),
               child: Slider(

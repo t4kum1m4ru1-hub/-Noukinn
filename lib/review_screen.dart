@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'theme/app_colors.dart';
 
 /// トレーニング完了後に表示されるレビュー画面
 class ReviewScreen extends StatelessWidget {
@@ -7,9 +8,9 @@ class ReviewScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF121212),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1E1E1E),
+        backgroundColor: AppColors.surface,
         elevation: 0,
         title: const Text(
           'レビューページ',
@@ -36,7 +37,7 @@ class ReviewScreen extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                   ),
                 ),
               ),
@@ -46,7 +47,7 @@ class ReviewScreen extends StatelessWidget {
                   'すべてのワークアウトが完了しました！',
                   style: TextStyle(
                     fontSize: 16,
-                    color: Colors.white70,
+                    color: AppColors.textSecondary,
                   ),
                 ),
               ),
@@ -58,8 +59,8 @@ class ReviewScreen extends StatelessWidget {
                   Navigator.of(context).popUntil((route) => route.isFirst);
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.tealAccent,
-                  foregroundColor: Colors.black,
+                  backgroundColor: AppColors.primaryAccent,
+                  foregroundColor: AppColors.onPrimaryAccent,
                   minimumSize: const Size.fromHeight(52),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
