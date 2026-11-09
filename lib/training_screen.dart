@@ -119,7 +119,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(16),
                               child: Image.asset(
-                                'assets/images/bench-press.avif',
+                                'assets/images/workout/bench_press.avif',
                                 key: const Key('exercise_image'),
                                 fit: BoxFit.contain,
                                 errorBuilder: (context, error, stackTrace) {
@@ -151,7 +151,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
                                         ),
                                         SizedBox(height: 4),
                                         Text(
-                                          'assets/images/bench-press.avif',
+                                          'assets/images/workout/bench_press.avif',
                                           style: TextStyle(
                                             fontSize: 12,
                                             color: Colors.white38,
