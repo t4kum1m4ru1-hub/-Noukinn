@@ -1,7 +1,7 @@
-# BRIEFING — 2026-11-06T00:05:00Z
+# BRIEFING — 2026-11-10T10:05:00Z
 
 ## Mission
-Deliver a minimal cross-platform Flutter verification application in lib/main.dart capturing physical buttons and earphone media keys, reading them out via flutter_tts, with dark mode verification UI and automated tests.
+Deliver an interactive tutorial screen (TutorialScreen) for the "noukin" fitness app to demonstrate hands-free earphone media-key training control during intermediate presentations, adhering strictly to R1-R6 and Acceptance Criteria.
 
 ## 🔒 My Identity
 - Archetype: teamwork_orchestrator
@@ -9,6 +9,9 @@ Deliver a minimal cross-platform Flutter verification application in lib/main.da
 - Working directory: c:\Users\taqmi\02_development\original_program\button_controll_test\.agents\teamwork\orchestrator\
 - Original parent: parent
 - Original parent conversation ID: 886f7f94-59e2-4e5c-8f02-8a94574e5dc3
+- Workspace noukin_app: c:\Users\taqmi\02_development\original_program\noukin_app
+- State folder noukin_app: c:\Users\taqmi\02_development\original_program\noukin_app\.agents\teamwork\orchestrator\
+- Noukin Parent: parent (conversation ID: d39f1c8c-71b9-4688-9935-16ca6ab5155e)
 
 ## 🔒 My Workflow
 - **Pattern**: Project Pattern
@@ -24,8 +27,10 @@ Deliver a minimal cross-platform Flutter verification application in lib/main.da
   2. Milestone 1: Workspace & Core Implementation [done]
   3. Milestone 2: Automated Test Suite [done]
   4. Milestone 3: Integration Gate & Forensic Audit [done]
-- **Current phase**: Complete
-- **Current focus**: Synthesis and Final Reporting
+  5. noukin_app Phase 0: Survey & Specification Mining [done]
+  6. noukin_app Milestone 1: TutorialScreen Implementation & Automated Verification [in-progress]
+- **Current phase**: noukin_app Iteration 1 (Exploration)
+- **Current focus**: Milestone 1 implementation design via 3 parallel Explorers
 
 ## 🔒 Key Constraints
 - NEVER write, modify, or create source code files directly.
@@ -35,50 +40,52 @@ Deliver a minimal cross-platform Flutter verification application in lib/main.da
 - Mandatory: Include ORIGINAL_REQUEST.md path in every dispatch.
 - Binary veto on Forensic Audit failure.
 - Never reuse a subagent after handoff — always spawn fresh.
+- Do NOT modify lib/training_screen.dart (R1 strict rule).
+- Create lib/tutorial_screen.dart and hook up entry point in lib/main.dart.
+- Ensure flutterTts.stop() before any new speech and apply AudioDuckingController throughout.
 
 ## Current Parent
-- Conversation ID: 886f7f94-59e2-4e5c-8f02-8a94574e5dc3
-- Updated: 2026-11-05T23:35:00Z
+- Conversation ID: d39f1c8c-71b9-4688-9935-16ca6ab5155e
+- Updated: 2026-11-10T10:02:27Z
 
 ## Key Decisions Made
-- Architecture: Standalone lib/main.dart with in-file TtsService abstraction (FlutterTtsService for runtime, FakeTtsService for tests).
-- Event Handling: Global HardwareKeyboard.instance.addHandler filtering strictly for KeyDownEvent.
-- Dark UI: Dark surface theme, large center key display, scrollable real-time timestamped log with auto-scroll.
-- All gates passed: 2 Reviewers (APPROVE), 2 Challengers (APPROVE), 1 Forensic Auditor (CLEAN), 39/39 tests passed, 0 static analysis issues.
+- Completed Phase 0 Survey: Survey Explorer 1, Spec Miner 2, and Explorer 3 delivered unanimous architecture, spec, and test design.
+- Created PROJECT.md at workspace root with 15-feature inventory and code layout.
+- Starting Iteration 1 for Milestone 1: Spawning 3 parallel Explorers to synthesize detailed implementation strategies for Worker.
 
 ## Team Roster
 | Agent | Type | Work Item | Status | Conv ID |
 |-------|------|-----------|--------|---------|
-| survey_explorer_1 | teamwork_explorer | Workspace Environment Explorer | completed | 4bd42482-9f55-40fd-96d1-fa4b5a2ae0e6 |
-| survey_spec_miner_2 | teamwork_spec_miner | Key Event Spec Miner | completed | 310bf6bb-8dc7-4f87-989c-a577d7aa17c0 |
-| survey_explorer_3 | teamwork_explorer | TTS and UI Architecture Explorer | completed | 09c1e442-2cfe-42ef-9bc1-300da53b25df |
-| explorer_m1_1 | teamwork_explorer | Core Implementation Explorer | completed | 0729ff67-f4da-4601-b6c9-2c66e8abb1fd |
-| explorer_m1_2 | teamwork_explorer | Automated Test Design Explorer | completed | 0329820d-2064-4cf4-a292-cc2b02053e72 |
-| explorer_m1_3 | teamwork_explorer | Toolchain Build Explorer | completed | b0078e90-ca4c-4d69-b8b1-70d07cefef81 |
-| worker_m1 | teamwork_worker | Core Flutter Implementer | completed | 983e1289-df9f-482d-918f-196d2e1c9381 |
-| reviewer_m1_1 | teamwork_reviewer | Code Quality Reviewer | completed | 459e70db-8854-461c-94d0-04a2253e7bdb |
-| reviewer_m1_2 | teamwork_reviewer | Cross-Platform Conformance Reviewer | completed | e5d0d2c2-9e91-470c-a718-f99974a2c3bd |
-| challenger_m1_1 | teamwork_challenger | Key Event Challenger | completed | aba52c51-742d-4f0d-a350-c6912797c4be |
-| challenger_m1_2 | teamwork_challenger | UI & TTS Challenger | completed | 5f792a68-8e25-493d-aade-94e729355159 |
-| auditor_m1_1 | teamwork_auditor | Forensic Integrity Auditor | completed | 867c4e8e-bd8c-4002-aef2-f363f6c9fbdf |
+| survey_explorer_1 | teamwork_explorer | Codebase Architecture Explorer | completed | 2671154b-f59b-490d-b4d0-7f46a0372b82 |
+| survey_spec_miner_2 | teamwork_spec_miner | Tutorial Spec Miner | completed | 4618aa76-4156-44d4-9f5a-c40250d7e43c |
+| survey_explorer_3 | teamwork_explorer | UI & Test Harness Explorer | completed | c89d5437-7750-4d58-a498-fd3c4bf4549a |
+| explorer_m1_1 | teamwork_explorer | State Machine & Audio Explorer | completed | 57ded8d5-9900-41b8-8747-2f735b1e5722 |
+| explorer_m1_2 | teamwork_explorer | UI Overlay & Animation Explorer | completed | b7f0ec0d-135b-4186-95a8-3f131b6079e3 |
+| explorer_m1_3 | teamwork_explorer | Main Entry & Test Suite Explorer | completed | ecc83909-2d5d-4b75-be06-14c0d0cd42f0 |
+| worker_m1 | teamwork_worker | Core TutorialScreen Implementer | completed | 008f3666-4a51-4da3-a946-fc21f3ac0db8 |
+| reviewer_m1_1 | teamwork_reviewer | Code Quality & Architecture Reviewer | completed (APPROVE) | a5bd04b1-a2c3-4b85-afee-04313ffc06df |
+| reviewer_m1_2 | teamwork_reviewer | UI & Presentation Flow Reviewer | completed (APPROVE) | 8cf3828b-1c8b-4285-8b65-becdc210537e |
+| challenger_m1_1 | teamwork_challenger | Key Event & State Transition Challenger | completed (REQUEST_CHANGES) | f884e27d-9d20-4d67-8431-fa8ffff4c6e0 |
+| challenger_m1_2 | teamwork_challenger | Audio Concurrency & UI Robustness Challenger | completed (REQUEST_CHANGES) | a4895e00-663e-4762-b36b-8edf986bd1d6 |
+| auditor_m1_1 | teamwork_auditor | Forensic Integrity Auditor | completed (CLEAN) | d4344f3f-5e25-4213-a26c-0e141a628a52 |
+| explorer_m1_iter2_1 | teamwork_explorer | Concurrency & Re-entrancy Explorer | completed | d9d0eb21-b2f4-49b1-b962-6da0ab971f3d |
+| explorer_m1_iter2_2 | teamwork_explorer | Skip Route & State Reversion Explorer | completed | cc0ee700-6d12-4bcd-98de-50a46ee2f75b |
+| explorer_m1_iter2_3 | teamwork_explorer | Ducking & Lifecycle Cleanup Explorer | completed | 1d41f25d-ef8e-4df9-aa5f-f9265efabeef |
+| worker_m1_iter2 | teamwork_worker | Concurrency & Audio Remediation Worker | completed | 9237183c-6975-4e65-a290-22ead8b77f68 |
 
 ## Succession Status
-- Succession required: no
-- Spawn count: 12 / 16
+- Succession required: yes (16 spawns reached, all subagents completed)
+- Spawn count: 16 / 16 (for current noukin_app mission)
 - Pending subagents: none
 - Predecessor: none
-- Successor: not required (project complete)
+- Successor spawned: 9528f92d-1778-49ac-b667-0f71508fb087
+- Successor generation: gen1
+- Successor state folder: c:\Users\taqmi\02_development\original_program\noukin_app\.agents\teamwork\orchestrator_gen1\
 
 ## Active Timers
-- Heartbeat cron: none
-- Safety timer: none
+- Heartbeat cron: 2710972e-05b0-491e-8e81-953af37d2751/task-280
+- Safety timer: 2710972e-05b0-491e-8e81-953af37d2751/task-281
 
 ## Artifact Index
-- c:\Users\taqmi\02_development\original_program\button_controll_test\lib\main.dart — Core Application Deliverable
-- c:\Users\taqmi\02_development\original_program\button_controll_test\test\widget_test.dart — Core Automated Tests (19 tests)
-- c:\Users\taqmi\02_development\original_program\button_controll_test\test\stress_test.dart — Key Event Stress Tests (8 tests)
-- c:\Users\taqmi\02_development\original_program\button_controll_test\test\ui_tts_challenger_test.dart — UI & TTS Stress Tests (12 tests)
-- c:\Users\taqmi\02_development\original_program\button_controll_test\pubspec.yaml — Project Dependencies
-- c:\Users\taqmi\02_development\original_program\button_controll_test\android\app\src\main\AndroidManifest.xml — Android TTS Manifest Configuration
-- c:\Users\taqmi\02_development\original_program\button_controll_test\.agents\teamwork\PROJECT.md — Global Architecture & Milestones
-- c:\Users\taqmi\02_development\original_program\button_controll_test\.agents\teamwork\orchestrator\GATE_STATUS.md — Gate Verdict Tracking
+- c:\Users\taqmi\02_development\original_program\noukin_app\.agents\teamwork\ORIGINAL_REQUEST.md — Authoritative User Request
+- c:\Users\taqmi\02_development\original_program\noukin_app\.agents\teamwork\PROJECT.md — Global Architecture & Milestones

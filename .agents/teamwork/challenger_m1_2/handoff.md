@@ -1,167 +1,167 @@
-# Handoff Report — challenger_m1_2 (UI & TTS Challenger)
+# Handoff Report: TutorialScreen Audio Concurrency & Lifecycle Adversarial Challenge
 
-**Agent**: `challenger_m1_2`  
-**Milestone**: Milestone 1 (UI & TTS Empirical Verification & Stress Testing)  
-**Date**: 2026-11-06T00:04:00Z  
-**Verdict**: **`APPROVE`**
+**Agent**: challenger_m1_2 (empirical-challenger, critic, specialist)  
+**State folder**: `c:\Users\taqmi\02_development\original_program\noukin_app\.agents\teamwork\challenger_m1_2\`  
+**Date**: 2026-11-10  
+**Status**: Hard Handoff (Completed)  
+**Verdict**: **REQUEST_CHANGES**
 
 ---
 
 ## 1. Observation
 
-1. **Test Suite Execution (`flutter test --no-test-assets --reporter expanded`)**:
-   - Command:
-     ```powershell
-     flutter test --no-test-assets --reporter expanded
+1. **既存テストスイートの通過確認**:
+   - `flutter analyze` 実行結果: `No issues found! (ran in 2.3s)`（exit code 0）。
+   - `flutter test --no-test-assets test/tutorial_screen_test.dart` 実行結果: `00:04 +11: All tests passed!`（exit code 0）。
+   - 既存のハッピーパス中心のテストマトリクスはすべて合格していた。
+
+2. **新規作成した敵対的ストレステストスイート**:
+   - テストファイル: `test/stress_tutorial_audio_test.dart`（全9テストケース）。
+   - 実行コマンド: `flutter test --no-test-assets test/stress_tutorial_audio_test.dart`
+   - 実行結果: `00:05 +3 -6: Some tests failed.`（exit code 1）。
+
+3. **検出された具体的な失敗ログ（抜粋）**:
+   - **Test 1（Step 2 キー85連打時の多重発話）**:
      ```
-   - Total tests executed across the workspace: 39 tests.
-   - Result: Exit code 0, 39 passed, 0 failed.
-   - Breakdown:
-     - `test/widget_test.dart` (Worker test suite): 19 passed, 0 failed.
-     - `test/ui_tts_challenger_test.dart` (Challenger UI & TTS adversarial harness): 12 passed, 0 failed.
-     - `test/stress_test.dart` (Challenger Key Interception harness): 8 passed, 0 failed.
-
-2. **Center UI Dynamic Updates & Layout Observations (`lib/main.dart:435–510`)**:
-   - Idle state displays `waiting_prompt` (`ボタンを押してください`, `Volume Up/Down または イヤホンボタン`).
-   - Detected state displays `detected_action_display`:
-     - Key name in 28pt bold teal accent text (`Key('center_key_name')`).
-     - Japanese speech string in 16pt white text (`Key('center_speech_text')`).
-     - Formatted timestamp `受信時刻: HH:mm:ss.SSS` (`Key('center_timestamp')`).
-   - Center display is enclosed within a `SingleChildScrollView` inside `Expanded(flex: 5)`.
-   - Constrained viewport stress test at 320×400 physical dimensions produced zero `RenderFlex` overflow errors.
-   - Landscape viewport stress test at 800×360 physical dimensions produced zero layout overflow errors.
-   - Clearing logs via `Key('clear_logs_button')` clears the bottom log list while maintaining the latest center key display intact (`lib/main.dart:391–395`).
-
-3. **Bottom Log List & Chronological Ordering Observations (`lib/main.dart:512–580`)**:
-   - Header shows dynamic event count: `リアルタイムログ (${_logs.length}件)` (`Key('log_header_count')`).
-   - Monotonically advancing timestamps are rendered with millisecond precision (`HH:mm:ss.SSS`) via pure Dart formatter `formatTimestamp` (`lib/main.dart:259–266`).
-   - Auto-scrolling is driven by `WidgetsBinding.instance.addPostFrameCallback` invoking `_scrollController.animateTo(_scrollController.position.maxScrollExtent, duration: Duration(milliseconds: 250), curve: Curves.easeOut)`.
-   - High-throughput stress test of 50 rapid sequential key events rendered and animated without exception or leak.
-   - Both clearing mechanisms were verified:
-     - AppBar action (`Key('clear_logs_button')`): disabled when empty (`onPressed: _logs.isEmpty ? null : _clearLogs`).
-     - Inline header action (`Key('log_header_clear')`): rendered only when `_logs.isNotEmpty`.
-   - Post-clear recovery: adding new key events after clearing smoothly resumes log recording from index 0.
-
-4. **TTS Audio Feedback Logic & Error Resilience (`lib/main.dart:56–154`)**:
-   - All 5 canonical speech strings exactly match requirements:
-     - `ButtonAction.volumeUp.speechText` -> `"音量アップを受信しました"`
-     - `ButtonAction.volumeDown.speechText` -> `"音量ダウンを受信しました"`
-     - `ButtonAction.mediaPlayPause.speechText` -> `"再生・停止ボタンが押されました"`
-     - `ButtonAction.mediaNext.speechText` -> `"次の曲ボタンを受信しました"`
-     - `ButtonAction.mediaPrevious.speechText` -> `"前の曲ボタンを受信しました"`
-   - `FlutterTtsService.initialize()` configures:
-     - `setLanguage("ja-JP")`
-     - `setSpeechRate(0.5)`
-     - `setVolume(1.0)`
-     - `awaitSpeakCompletion(true)`
-     - iOS `AVAudioSession` options (`playback`, `allowBluetooth`, `allowBluetoothA2DP`, `mixWithOthers`, `defaultToSpeaker`)
-   - Platform channel mock interception (`TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler`) confirmed:
-     - Method call `'stop'` is invoked immediately prior to method call `'speak'` on every utterance request (`lib/main.dart:106–107`).
-   - Native channel fault injection:
-     - Intercepted `MethodChannel('flutter_tts')` to throw `PlatformException(code: 'TTS_ENGINE_MISSING', message: 'No TTS engine found on host device')`.
-     - `FlutterTtsService` caught all exceptions in defensive `try / catch` blocks without throwing unhandled exceptions.
-     - Application UI in `ButtonControlApp(ttsService: FlutterTtsService())` remained completely interactive, updating center display and log entries normally during native TTS failure.
-
-5. **Static Analysis (`flutter analyze`)**:
-   - Command:
-     ```powershell
-     flutter analyze lib test/widget_test.dart test/ui_tts_challenger_test.dart
+     ══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+     The following TestFailure was thrown running a test:
+     Expected: <1>
+       Actual: <3>
+     Step 2 開始キーの連打で複数回 TTS が多重発話されてはならない (再入防止)
+     line 185 in test/stress_tutorial_audio_test.dart
      ```
-   - Result: `No issues found! (ran in 8.6s)` (Exit code 0).
+   - **Test 2（Step 2 発話保留中にスキップ連打で Step 4 に進んだ後の逆流）**:
+     ```
+     ══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+     The following TestFailure was thrown running a test:
+     Expected: exactly one matching candidate
+       Actual: _TextContainingWidgetFinder:<Found 0 widgets with text containing 重量調整と音声: []>
+        Which: means none were found but one was expected
+     Step 2 の非同期コールバック完了によって Step 4 から Step 3 へ先祖返りしてはならない
+     line 231 in test/stress_tutorial_audio_test.dart
+     ```
+   - **Test 3（Step 4 重量変更後にデバウンスを待たずスキップした際のダッキング残留）**:
+     ```
+     ══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+     The following TestFailure was thrown running a test:
+     Expected: <false>
+       Actual: <true>
+     デバウンスTTSがスキップされた場合、オーディオダッキングは解除されなければならない
+     line 278 in test/stress_tutorial_audio_test.dart
+     ```
+   - **Test 6（Step 4 デバウンス中に AppBar 戻るボタンで pop した際の事後発話）**:
+     ```
+     ══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+     The following TestFailure was thrown running a test:
+     Expected: empty
+       Actual: ['62.5キロ']
+     line 444 in test/stress_tutorial_audio_test.dart
+     ```
+   - **Test 8（Step 3 決定発話保留中にスキップ連打で Step 5 に進んだ後の逆流）**:
+     ```
+     ══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+     The following TestFailure was thrown running a test:
+     Expected: exactly one matching candidate
+       Actual: _TextContainingWidgetFinder:<Found 0 widgets with text containing 調整の完了: []>
+     Step 3 の決定発話完了によって Step 5 から Step 4 へ先祖返りしてはならない
+     line 525 in test/stress_tutorial_audio_test.dart
+     ```
+   - **Test 9（Step 5 確定キー87連打時の確定音声多重発話）**:
+     ```
+     ══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+     The following TestFailure was thrown running a test:
+     Expected: <1>
+       Actual: <3>
+     Step 5 確定キー連打で複数回 TTS が多重発話されてはならない
+     line 563 in test/stress_tutorial_audio_test.dart
+     ```
+
+4. **合格した領域（堅牢性が実証されたテスト）**:
+   - **Test 4**: `speak()` 直前の `stop()` 呼び出し順序（Audio Hygiene）は完全順守（100% stop 先行）。
+   - **Test 5**: TTS発話中の画面 pop においてクラッシュや `setState after dispose` は発生せず安全にアンマウント。
+   - **Test 7**: 最下部仮想キーバー Vol+ の20回高速連打で、リアルタイムUI更新（110 kg）とデバウンス発話（「110キロ」1回のみ）が正常動作。
 
 ---
 
 ## 2. Logic Chain
 
-1. **Center UI Compliance**:
-   - Requirement R3 states: "Center of the screen displays the name of the most recently detected button/key (e.g. KEYCODE_VOLUME_UP) in large text."
-   - Observation 2 demonstrates that `ButtonControlScreenState._processAction` updates `_latestAction` and `_latestTimestamp` inside `setState()`.
-   - Adversarial tests 1.1, 1.2, 1.3, and 1.4 confirm that alternating all 5 key events immediately refreshes the center readout, renders cleanly under extreme screen dimensions without overflow, and survives log clearing without reverting to the idle prompt.
-   - Therefore, Requirement R3 center UI behavior is completely and robustly satisfied.
+1. **ステートマシン逆流バグ（Bug 1）の原因分析**:
+   - `lib/tutorial_screen.dart` の 328〜338行目（`_proceedFromStep2`）および 375〜384行目（`_handleStep3Action` 内の再生キー分岐）において、非同期処理 `await _speak(...)` の後に実行される `setState` は、`if (!mounted) return;` のみをチェックしている。
+   - ユーザーが音声待機中にスキップボタン（`Key('btn_tutorial_skip')`）を押した場合、`_currentStep` は直ちに次以降のステップ（Step 3 ➔ Step 4、または Step 4 ➔ Step 5）へ前進する。
+   - しかし、先行して走っていた非同期発話が完了した瞬間に `setState(() { _currentStep = TutorialStep.step3Select; })` や `setState(() { _currentStep = TutorialStep.step4Adjust; })` が無条件に実行され、**現在の進んだステップを上書きして過去のステップへと巻き戻してしまう**。
+   - 実演プレゼン時、音声の終了を待たずに画面を進めた発表者が強制的に過去ステップへ引き戻され、進行不能・混乱に陥る致命的な欠陥である。
 
-2. **Log List Chronological Ordering & Clear Isolation**:
-   - Requirement R3 states: "Bottom of the screen displays a scrollable real-time log list showing received key events with their timestamps."
-   - Observation 3 demonstrates that `_logs` appends `KeyEventLog(timestamp: now, action: action)` upon receipt.
-   - Pure Dart millisecond timestamp formatting `formatTimestamp` prevents time-format bugs across locales.
-   - Adversarial tests 2.1, 2.2, 2.3, and 2.4 confirm that auto-scrolling preserves chronological ordering, survives high-velocity event bursts (50+ events), cleans up via both header and AppBar triggers, and correctly resets the empty-state indicator and clear button disablement.
-   - Therefore, Requirement R3 bottom log list behavior is completely and robustly satisfied.
+2. **オーディオダッキング残留リーク（Bug 2）の原因分析**:
+   - `lib/tutorial_screen.dart` の 394〜409行目において、Step 4 の音量ボタン押下時に `await _playBeep()` が呼ばれ、`_duckingController.requestDucking()` が実行される。
+   - この直後に0.7秒のデバウンスタイマーが始動し、TTS発話が予約される。
+   - ユーザーが0.7秒以内にスキップボタンを押すと、443〜472行目の `_onSkipStepPressed()` が呼ばれ、`_cancelDebounce()` でタイマーが破棄される。
+   - その結果、TTS発話（およびTTS完了時のダッキング解除）は永久に実行されず、かつ `_onSkipStepPressed()` 自体も `_duckingController.releaseDucking()` を呼ばない。
+   - したがって、**電子音再生のために要求された BGM ダッキングが未来永劫解除されず、BGM 音量が小さくなったまま放置される**（Acceptance Criteria「全TTS発話および電子音再生時に AudioDuckingController のダッキング要求および解除が適切に実行されること」の明確な違反）。
 
-3. **TTS Speech Correctness, Stop-Before-Speak, and Native Resilience**:
-   - Requirement R2 states: "Upon detecting any specified key event, immediately speak out a confirmation phrase (e.g. '音量アップを受信しました', '再生・停止ボタンが押されました') using `flutter_tts` so that button operation can be verified without viewing the display."
-   - Observation 4 confirms that all 5 target actions are mapped to accurate Japanese phrases.
-   - Platform channel verification proved that `FlutterTtsService.speak` interrupts ongoing utterances via `await _flutterTts.stop()` before dispatching `_flutterTts.speak(text)`.
-   - Fault injection testing proved that even when host platform TTS services fail, throw, or are missing entirely, `FlutterTtsService`'s try/catch envelope prevents crashes and maintains full UI responsiveness.
-   - Therefore, Requirement R2 audio feedback behavior is completely and robustly satisfied.
+3. **ボタン連打時の多重発話（Bug 3）の原因分析**:
+   - `_proceedFromStep2()` および `_handleStep5Action()` は、再入（リエントラント）ガード（処理中フラグ等）を持っていない。
+   - キーや画面タップが連続して発生すると、1回目の `await _playBeep()` や `await _speak()` が保留されている間に2回目・3回目の呼び出しが並行実行され、電子音が複数回鳴り、TTS発話も複数回キューイングされる。
+
+4. **画面離脱時のデバウンスタイマー事後発話（Bug 4）の原因分析**:
+   - AppBar の「戻る」ボタン（588行目 `onPressed: () => Navigator.of(context).pop()`）は、画面を閉じるアニメーションを開始するだけで、保留中の `_debounceTimer` をキャンセルしない。
+   - 加えて、100ms周期の `_framePumpTimer` がフレーム要求を続けるため、Pop遷移中に0.7秒が経過して `_speak('62.5キロ')` が発火する。ユーザーが画面を閉じた後にイヤホンから音声が漏れ出す。
 
 ---
 
 ## 3. Caveats
 
-1. **Headless Execution Environment**:
-   - Actual sound wave playback through physical device speakers cannot be captured in headless Flutter test environments. However, end-to-end platform channel communication (method invocation order, payload, language configuration, and exception handling) has been empirically verified via mock binary messaging.
-2. **Platform Focus Traversal on Arrow Keys**:
-   - Unhandled directional keyboard keys (e.g., `LogicalKeyboardKey.arrowUp`) are consumed by Flutter's focus tree for focus traversal when the app is focused, returning `true` at the framework binding level while being properly ignored by the button control handler. This is standard Flutter behavior.
-3. **No Caveats on Core Implementation**:
-   - All functional requirements R1–R5 are verified and operating as specified.
+- **テストコード自体の分離**:
+  - 本検証で作成したテストコードは `test/stress_tutorial_audio_test.dart` として独立しており、`PROJECT.md` のレイアウト規約（テストは `test/` に配置）を遵守している。
+- **実装コードの非改変（Review-Only 制約）**:
+  - Challenger は Review-Only エージェントであるため、`lib/tutorial_screen.dart` への修正は一切加えていない。
+- **既存テストへの影響**:
+  - 既存の `test/tutorial_screen_test.dart`（11テスト）および `test/widget_test.dart`（14テスト）はすべて通過しており、Worker が実装した基本機能そのものには破壊的デグレはない。今回発見されたのは高負荷・非同期割り込み時のエッジケース耐性である。
 
 ---
 
 ## 4. Conclusion
 
-**Verdict: `APPROVE`**
+- **判定**: **REQUEST_CHANGES**
+- **理由**:
+  1. 音声発話待機中のスキップ操作により、ステートマシンが過去のステップへ巻き戻る（先祖返り）重大な非同期レースコンディションが実証された（Bug 1）。
+  2. デバウンス待機中にスキップした際、オーディオダッキングが解除されず BGM 音量が低下したまま残留するリークが実証された（Bug 2）。
+  3. ボタン連打時に開始・確定音声が多重発話される（Bug 3）。
+  4. 戻るボタン押下時にデバウンス音声が事後発話される（Bug 4）。
 
-The implementation in `lib/main.dart` exhibits excellent architecture, robust error boundaries, resilient layout handling, and precise compliance with all user requirements (R1–R5):
-- Center UI dynamically displays the last detected key name in large text with Japanese confirmation and millisecond timestamps without layout overflow.
-- Bottom real-time log list displays events chronologically, auto-scrolls to latest entries, and provides dual clean-clearing capabilities.
-- TTS service logic enforces stop-before-speak preemption, uses accurate Japanese confirmation phrases, sets `ja-JP`, and defends against native engine failures.
-- Multi-tier and adversarial tests (39 tests total) pass with 100% success rate and zero static analysis issues.
+### Worker への修正要求事項（Action Items）
+
+1. **ステートマシンの非同期完了ガード**:
+   - `_proceedFromStep2()`:
+     ```dart
+     if (!mounted || _currentStep != TutorialStep.step2Start) return;
+     ```
+   - `_handleStep3Action()`（決定キー分岐）:
+     ```dart
+     if (!mounted || _currentStep != TutorialStep.step3Select) return;
+     ```
+   - `_handleStep5Action()`:
+     ```dart
+     if (!mounted || _currentStep != TutorialStep.step5Confirm) return;
+     ```
+2. **スキップ処理およびデバウンス破棄時のダッキング解除**:
+   - `_onSkipStepPressed()` の先頭で `_cancelDebounce()`、`widget.ttsService?.stop()` に加え、`_duckingController.releaseDucking()` を確実に呼び出す。
+3. **ステップ遷移中の再入ガード**:
+   - `_isTransitioning` などのフラグを導入し、ステップ進行アニメーション・TTS発話中は同一キーの再受付をブロックする。
+4. **画面離脱時のクリーンアップ**:
+   - AppBar の戻るボタン押下時、および `PopScope` を用いて画面離脱開始時に `_cancelDebounce()`、`widget.ttsService?.stop()`、`_duckingController.releaseDucking()` を即座に実行する。
 
 ---
 
 ## 5. Verification Method
 
-To independently reproduce and verify this review:
+Worker または後続の検証者は、以下のコマンドを実行して Bug 1〜4 の再現および修正後の完全通過を確認できる：
 
-1. **Run Full Test Suite (including adversarial harnesses)**:
-   ```powershell
-   flutter test --no-test-assets --reporter expanded
-   ```
-   *Expected Result*: All 39 tests pass with exit code 0.
+```powershell
+flutter test --no-test-assets test/stress_tutorial_audio_test.dart
+```
 
-2. **Run UI & TTS Challenger Test Suite Individually**:
-   ```powershell
-   flutter test test/ui_tts_challenger_test.dart --no-test-assets --reporter expanded
-   ```
-   *Expected Result*: All 12 adversarial tests pass with exit code 0.
-
-3. **Run Static Analysis on Production & Challenger Code**:
-   ```powershell
-   flutter analyze lib test/widget_test.dart test/ui_tts_challenger_test.dart
-   ```
-   *Expected Result*: `No issues found!` (Exit code 0).
-
----
-
-## 6. Adversarial Challenge Summary
-
-**Overall risk assessment**: **LOW**
-
-### Stress Test Results Table
-
-| # | Scenario | Expected Behavior | Actual Behavior | Result |
-|---|----------|-------------------|-----------------|--------|
-| 1.1 | Rapid alternating keypresses (5 keys in loop) | Center UI dynamically updates key name & timestamp at each step | Key name and timestamp updated without lag | **PASS** |
-| 1.2 | Extremely constrained screen viewport (320×400) | No RenderFlex layout overflow exceptions | SingleChildScrollView absorbed content, zero errors | **PASS** |
-| 1.3 | Landscape viewport (800×360) | UI renders center display and log list without layout overflow | Rendered cleanly without overflow | **PASS** |
-| 1.4 | Center UI persistence after clearing logs | Center display retains last detected action | Last detected action remained visible | **PASS** |
-| 2.1 | Chronological log ordering and auto-scrolling | Latest item visible at bottom, older items retrievable by scroll | Item 4 visible at bottom; item 0 verified by scrolling | **PASS** |
-| 2.2 | High-throughput burst (50 consecutive events) | Event count hits 50, list and autoscroller remain stable | 50 items rendered and counted cleanly | **PASS** |
-| 2.3 | Header inline 'クリア' gesture button | Empties logs, shows empty prompt, hides button | Logs cleared cleanly | **PASS** |
-| 2.4 | Post-clear event recovery | New event appends starting at index 0, re-enabling clear button | Log successfully created at index 0 | **PASS** |
-| 3.1 | Japanese speech string exact match | Exact phrasing for all 5 actions | All 5 match canonical specs | **PASS** |
-| 3.2 | Platform channel stop-before-speak sequence | 'stop' method call strictly precedes 'speak' method call | Intercepted method call list: `['stop', 'speak']` | **PASS** |
-| 3.3 | FlutterTtsService native error catching | PlatformException caught without throwing to caller | Handled with debugPrint, completed without exception | **PASS** |
-| 3.4 | Fault injection: UI responsiveness during native TTS failure | UI updates center display and log even if native TTS crashes | UI updated normally, zero uncaught exceptions | **PASS** |
-
-### Unchallenged Areas
-- Physical hardware Bluetooth earphone latency (requires physical hardware bench test outside CI).
+- **現在の結果（再現の確認）**:
+  - `00:05 +3 -6: Some tests failed.`（Test 1, 2, 3, 6, 8, 9 が失敗）
+- **合格基準（修正完了の確認）**:
+  - `00:05 +9: All tests passed!`（全9テストが exit code 0 で完全成功）
+  - かつ `flutter test --no-test-assets` で全34テスト（既存25＋ストレステスト9）が 100% 成功すること。

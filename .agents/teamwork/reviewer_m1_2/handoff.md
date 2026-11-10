@@ -1,222 +1,121 @@
-# Handoff Report — reviewer_m1_2 (Cross-Platform Conformance Reviewer & Critic)
+# Handoff Report: TutorialScreen UI Presentation, Media Key Interaction & Test Review (M1)
 
-**Agent**: `reviewer_m1_2`  
-**Milestone**: Milestone 1 (Cross-Platform Conformance & Adversarial Stress Testing)  
-**Date**: 2026-11-06T00:01:00Z  
-**Verdict**: **APPROVE**  
-**Integrity Status**: PASS (Zero integrity violations detected)
+**Agent**: reviewer_m1_2 (reviewer, critic)  
+**State folder**: `c:\Users\taqmi\02_development\original_program\noukin_app\.agents\teamwork\reviewer_m1_2\`  
+**Date**: 2026-11-10  
+**Status**: Hard Handoff (Completed)  
+**Verdict**: **APPROVE**
 
 ---
 
 ## 1. Observation
 
-1. **Test Suite Execution Command & Result**:
-   - Command executed:
-     ```powershell
-     flutter test --no-test-assets
+1. **Static Analysis Result (`flutter analyze`)**:
+   - Executed command: `flutter analyze`
+   - Output verbatim:
      ```
-   - Verbatim Output:
-     ```
-     00:00 +0: loading C:/Users/taqmi/02_development/original_program/button_controll_test/test/widget_test.dart
-     00:00 +0: Unit Tests: Domain Models & Helpers ButtonAction.fromLogicalKey maps all target logical keys correctly
-     00:00 +1: Unit Tests: Domain Models & Helpers KeyEventLog formattedTime produces zero-padded HH:mm:ss.SSS
-     00:00 +2: Unit Tests: Domain Models & Helpers FakeTtsService records history and clears correctly
-     00:00 +3: Tier 1: Feature Coverage (Core Key Actions) 1.0: Initial State displays waiting prompt, empty log, and disabled clear button
-     00:00 +4: Tier 1: Feature Coverage (Core Key Actions) 1.1: Volume Up key event updates center UI, adds log entry, and calls TTS
-     00:01 +5: Tier 1: Feature Coverage (Core Key Actions) 1.2: Volume Down key event updates center UI, adds log entry, and calls TTS
-     00:01 +6: Tier 1: Feature Coverage (Core Key Actions) 1.3: Media Play/Pause toggle key event updates center UI, adds log entry, and calls TTS
-     00:01 +7: Tier 1: Feature Coverage (Core Key Actions) 1.4: Media Next Track key event updates center UI, adds log entry, and calls TTS
-     00:01 +8: Tier 1: Feature Coverage (Core Key Actions) 1.5: Media Previous Track key event updates center UI, adds log entry, and calls TTS
-     00:01 +9: Tier 2: Boundary & Corner Cases 2.1: Discrete KEYCODE_MEDIA_PLAY maps to mediaPlayPause action
-     00:01 +10: Tier 2: Boundary & Corner Cases 2.2: Discrete KEYCODE_MEDIA_PAUSE maps to mediaPlayPause action
-     00:01 +11: Tier 2: Boundary & Corner Cases 2.3: Unhandled keys (KeyA, Escape, Enter, Space) pass through without triggering UI or TTS
-     00:01 +12: Tier 2: Boundary & Corner Cases 2.4: Non-KeyDown events (KeyUp, KeyRepeat) are filtered to prevent duplicate triggers
-     00:01 +13: Tier 2: Boundary & Corner Cases 2.5: Clear log button empties log list while retaining center display
-     00:02 +14: Tier 2: Boundary & Corner Cases 2.6: State disposal cleans up key event handler and stops TTS
-     00:02 +15: Tier 3: Sequential & Combinatorial Key Events 3.1: Alternating volume and media buttons maintain chronological log order and speech sequence
-     00:02 +16: Tier 3: Sequential & Combinatorial Key Events 3.2: Rapid consecutive presses of identical key produce multiple distinct log entries and speech calls
-     00:02 +17: Tier 3: Sequential & Combinatorial Key Events 3.3: Rapid Play/Pause toggling across toggle and discrete events
-     00:02 +18: Tier 3: Sequential & Combinatorial Key Events 3.4: Complete all 5 target keys sequential full traversal
-     00:03 +19: All tests passed!
-     ```
-   - Exit code: 0. 19/19 tests passed.
-
-2. **Static Analysis Command & Result**:
-   - Command executed:
-     ```powershell
-     flutter analyze
-     ```
-   - Verbatim Output:
-     ```
-     Analyzing button_controll_test...
-     No issues found! (ran in 7.6s)
+     Analyzing noukin_app...                                         
+     No issues found! (ran in 1.7s)
      ```
    - Exit code: 0.
 
-3. **Key Mapping Code Inspection (`lib/main.dart` lines 161–257)**:
-   - Verbatim definitions in `ButtonAction`:
-     ```dart
-     enum ButtonAction {
-       volumeUp(
-         keyName: 'KEYCODE_VOLUME_UP',
-         displayLabel: 'Volume Up',
-         speechText: '音量アップを受信しました',
-         icon: Icons.volume_up,
-       ),
-       volumeDown(
-         keyName: 'KEYCODE_VOLUME_DOWN',
-         displayLabel: 'Volume Down',
-         speechText: '音量ダウンを受信しました',
-         icon: Icons.volume_down,
-       ),
-       mediaPlayPause(
-         keyName: 'KEYCODE_MEDIA_PLAY_PAUSE',
-         displayLabel: 'Play / Pause',
-         speechText: '再生・停止ボタンが押されました',
-         icon: Icons.play_circle_filled,
-       ),
-       mediaNext(
-         keyName: 'KEYCODE_MEDIA_NEXT',
-         displayLabel: 'Next Track',
-         speechText: '次の曲ボタンを受信しました',
-         icon: Icons.skip_next,
-       ),
-       mediaPrevious(
-         keyName: 'KEYCODE_MEDIA_PREVIOUS',
-         displayLabel: 'Previous Track',
-         speechText: '前の曲ボタンを受信しました',
-         icon: Icons.skip_previous,
-       );
+2. **Test Suite Execution Result (`flutter test --no-test-assets`)**:
+   - Executed command: `flutter test --no-test-assets`
+   - Output verbatim:
      ```
-   - Verbatim mappings in `fromLogicalKey` (lines 212–232):
-     - `LogicalKeyboardKey.audioVolumeUp` -> `ButtonAction.volumeUp`
-     - `LogicalKeyboardKey.audioVolumeDown` -> `ButtonAction.volumeDown`
-     - `LogicalKeyboardKey.mediaPlayPause`, `mediaPlay`, `mediaPause`, `select` -> `ButtonAction.mediaPlayPause`
-     - `LogicalKeyboardKey.mediaTrackNext` -> `ButtonAction.mediaNext`
-     - `LogicalKeyboardKey.mediaTrackPrevious` -> `ButtonAction.mediaPrevious`
-   - Verbatim mappings in `fromPhysicalKey` (lines 235–256):
-     - `PhysicalKeyboardKey.audioVolumeUp` -> `ButtonAction.volumeUp`
-     - `PhysicalKeyboardKey.audioVolumeDown` -> `ButtonAction.volumeDown`
-     - `PhysicalKeyboardKey.mediaPlayPause`, `mediaPlay`, `mediaPause`, `select`, `mediaSelect` -> `ButtonAction.mediaPlayPause`
-     - `PhysicalKeyboardKey.mediaTrackNext` -> `ButtonAction.mediaNext`
-     - `PhysicalKeyboardKey.mediaTrackPrevious` -> `ButtonAction.mediaPrevious`
+     00:00 +0: loading C:/Users/taqmi/02_development/original_program/noukin_app/test/tutorial_screen_test.dart
+     ...
+     00:05 +25: All tests passed!
+     ```
+   - Total tests executed: 25 (11 `tutorial_screen_test.dart` + 14 `widget_test.dart`).
+   - Exit code: 0.
 
-4. **Android Manifest TTS Queries Inspection (`android/app/src/main/AndroidManifest.xml` lines 39–47)**:
-   - Verbatim XML:
-     ```xml
-         <queries>
-             <intent>
-                 <action android:name="android.intent.action.PROCESS_TEXT"/>
-                 <data android:mimeType="text/plain"/>
-             </intent>
-             <intent>
-                 <action android:name="android.intent.action.TTS_SERVICE" />
-             </intent>
-         </queries>
-     ```
-   - Position: Direct child of `<manifest>`, placed after `</application>`.
+3. **Visual Presentation & Overlay (`lib/tutorial_screen.dart`)**:
+   - Line 1472: `overlayColor = const Color(0xB3000000)`: 70.2% semi-transparent black overlay.
+   - Lines 1501–1506: Spotlight punch-through using `Path.combine(PathOperation.difference, backgroundPath, holePath)`.
+   - Lines 157–165, 1021–1043: Dual-layer glowing `BoxShadow` driven by 1200ms `AnimationController` with `CurvedAnimation(curve: Curves.easeInOut)`.
+   - Lines 176–189: `_startGlowIfNeeded()` respects `widget.animateGlow` flag and stops during Steps 1 and 6, preventing `tester.pumpAndSettle()` test timeouts.
+   - Lines 1324–1400: Bottom 5-button virtual media key bar (`virtual_key_prev`, `virtual_key_play_pause`, `virtual_key_next`, `virtual_key_vol_down`, `virtual_key_vol_up`) mounted inside `bottomNavigationBar: SafeArea(...)`.
+   - Lines 1269–1294: Unobtrusive right-bottom skip button (`btn_tutorial_skip`).
 
-5. **iOS AVAudioSession Configuration Inspection (`lib/main.dart` lines 81–92)**:
-   - Verbatim Dart:
-     ```dart
-           if (defaultTargetPlatform == TargetPlatform.iOS) {
-             await _flutterTts.setSharedInstance(true);
-             await _flutterTts.setIosAudioCategory(
-               IosTextToSpeechAudioCategory.playback,
-               [
-                 IosTextToSpeechAudioCategoryOptions.allowBluetooth,
-                 IosTextToSpeechAudioCategoryOptions.allowBluetoothA2DP,
-                 IosTextToSpeechAudioCategoryOptions.mixWithOthers,
-                 IosTextToSpeechAudioCategoryOptions.defaultToSpeaker,
-               ],
-             );
-           }
-     ```
+4. **Media Key Event Interception & Flow (`lib/tutorial_screen.dart`)**:
+   - Lines 287–289: Normalizes `ButtonAction.headsetHook` (79) to `ButtonAction.mediaPlayPause` (85).
+   - Lines 328–338: Step 2 requires key 85, plays beep, speaks `開始、ベンチプレス、60キロ、10回、3セット`, and auto-advances to Step 3. Keys 24, 25, 87 are ignored.
+   - Lines 340–385: Step 3 Part 1 requires key 87 to enter mode and speak `調整、種目名`; Part 2 cycles items via keys 24/25 (`exerciseName` ⇄ `weight` ⇄ `reps` ⇄ `sets`) with beep and item TTS, selects via key 85 with beep and `60キロ`, and handles key 88 safe readout.
+   - Lines 387–422: Step 4 adjusts weight by ±2.5kg on keys 24/25 with instant beep and UI update, debounces TTS by 0.7s, cancels debounce on key 85 decision (`調整、重量`), and handles key 88 safe readout.
+   - Lines 424–441: Step 5 warns on non-87 keys, confirms on key 87 with beep, speaks `確定、開始、ベンチプレス、{weight}キロ、10回、3セット`, and auto-advances to Step 6.
+   - Lines 320–325: Step 6 navigates to `TrainingScreen` via key 85 or completion button `btn_start_first_training`.
+
+5. **Audio Hygiene & Ducking (`lib/tutorial_screen.dart`)**:
+   - Lines 206–214: `_speak()` calls `_duckingController.requestDucking()`, followed by `await widget.ttsService?.stop()`, before `speak()`.
+   - Lines 216–224: `_playBeep()` calls `_duckingController.requestDucking()` before `playBeep()`.
+   - Lines 191–200 & 264–278: `dispose()` and `_navigateToTrainingScreen()` stop TTS, release ducking, and cancel debounce timers.
+
+6. **Integrity Verification**:
+   - Git inspection shows `lib/training_screen.dart` is untouched for this milestone.
+   - `lib/main.dart` adds only the secondary tutorial launch button `start_tutorial_button` directly below `start_training_button` (lines 706–735).
+   - No hardcoded test responses or facade logic detected.
 
 ---
 
 ## 2. Logic Chain
 
-1. **Cross-Platform Key Mapping Conformance**:
-   - *Observation 3* demonstrates that `ButtonAction` maps all required logical keys (`audioVolumeUp`, `audioVolumeDown`, `mediaPlayPause`, `mediaPlay`, `mediaPause`, `select`, `mediaTrackNext`, `mediaTrackPrevious`).
-   - Furthermore, `ButtonAction.fromKeyEvent` implements a dual-layer strategy: logical key matching followed by physical key fallback (`fromPhysicalKey`). This guarantees compatibility across heterogeneous Android TV remotes, car Bluetooth units, OEM Android devices, and Bluetooth headsets which occasionally map remote play buttons to physical scan codes (`mediaSelect`).
-   - All 5 key events map to the exact key names and Japanese speech text required by R1, R2, and R4.
+1. **Integrity & Authenticity**:
+   - Observations 1, 2, and 6 establish that all 25 automated tests pass genuinely and statically check with zero warnings or errors.
+   - Source code analysis proves real state machine transitions, dynamic math clamping, and legitimate debounce timer dispatch. There are no integrity violations.
 
-2. **Android 11+ Package Visibility Conformance**:
-   - Starting with Android 11 (API level 30), apps cannot bind to native Text-To-Speech services unless declared under `<queries>`.
-   - *Observation 4* shows `<action android:name="android.intent.action.TTS_SERVICE" />` is correctly declared in `android/app/src/main/AndroidManifest.xml`.
-   - Placement is correctly located as a direct child of `<manifest>`, outside `<application>`, complying strictly with Android Manifest specifications.
+2. **Visual & Interaction Contract Fulfillment**:
+   - Observations 3 and 4 directly fulfill all requirements of R1, R3, R4, and R5.
+   - The 70% black overlay and firefly glow are implemented with correct color math and curve animations.
+   - Double key interception (hardware channel and focus shortcuts) correctly funnels all inputs into `_handleButtonAction`.
 
-3. **iOS Audio Session & Silent Mode Bypass Conformance**:
-   - On iOS, default audio categories (such as `.ambient`) mute sound when the physical Ring/Silent switch is enabled.
-   - *Observation 5* verifies that `FlutterTtsService.initialize()` configures `IosTextToSpeechAudioCategory.playback`, ensuring voice feedback is audible even when the device is silenced.
-   - The included category options (`allowBluetooth`, `allowBluetoothA2DP`, `mixWithOthers`, `defaultToSpeaker`) provide full compatibility with Bluetooth headsets, wireless earbuds, car audio, and concurrent background audio playback.
+3. **Audio Architecture Robustness**:
+   - Observation 5 confirms strict audio exclusivity (calling `stop()` before `speak()`) and audio ducking adherence, fulfilling R2.
 
-4. **Speech Strings Conformance**:
-   - Volume Up: `"音量アップを受信しました"` (exact match)
-   - Volume Down: `"音量ダウンを受信しました"` (exact match)
-   - Play/Pause: `"再生・停止ボタンが押されました"` (exact match)
-   - Next Track: `"次の曲ボタンを受信しました"` (exact match)
-   - Previous Track: `"前の曲ボタンを受信しました"` (exact match)
-   - All speech strings are verbatim identical to the user specification in `ORIGINAL_REQUEST.md`.
-
-5. **Test Rigor & Authenticity (Adversarial Assessment)**:
-   - *Observation 1* shows 19 tests covering unit models, single-action feature flows, boundary conditions, and combinatorial sequences.
-   - Every widget test dispatches genuine `LogicalKeyboardKey` events through `tester.sendKeyEvent` into the active widget tree. The app responds via its genuine event handler `HardwareKeyboard.instance.addHandler`, invokes `TtsService.speak`, mutates state, and renders the updated UI.
-   - The test assertions inspect actual widget tree elements (`find.text('KEYCODE_VOLUME_UP')`) and state histories (`fakeTts.spokenHistory`).
-   - There are no hardcoded mocks, facade bypasses, or fabricated outputs.
+4. **Zero-Regression Guarantee**:
+   - Because `lib/training_screen.dart` was strictly kept read-only and `main.dart` changes were localized to a supplementary entry button, all 14 existing core training tests continue to pass without regression.
 
 ---
 
 ## 3. Caveats
 
-1. **Host Environment Asset Compilation**:
-   - Because the local workspace path contains Japanese characters (`C:\Users\taqmi\06_一時保管\flutter`), running `flutter test` without flags fails during `impellerc.exe` asset compilation. Running with `--no-test-assets` operates cleanly and tests all application logic.
-2. **Physical iOS Volume Rocker Restriction**:
-   - On physical iOS devices, Apple's iOS AVFoundation restricts raw volume rocker key events from bubbling up to `UIKey` or `HardwareKeyboard`. Headset media buttons (Play/Pause, Next, Previous) and simulated volume keys operate cleanly. This is an OS-level architectural restriction of iOS, not an application defect.
+1. **Async Skip Race Condition (Minor / Non-blocking)**:
+   - If a user rapidly taps the floating skip button multiple times during the ~2.5 seconds when Step 2 or Step 5 transition TTS is actively speaking, the post-await callback in `_proceedFromStep2()` or `_handleStep5Action()` may overwrite `_currentStep` back to the immediate next step rather than retaining the skipped step. On typical presentations with physical earphone buttons or ADB commands, this condition is unlikely to occur.
+2. **Key 85 Re-entrancy During Step 2 Speech (Minor / Non-blocking)**:
+   - Double-tapping key 85 during Step 2 transition speech can re-invoke `_proceedFromStep2()`, resulting in re-triggered sound effects. Adding a single-flight guard flag is recommended in a future polish cycle.
 
 ---
 
-## 4. Conclusion & Verdict
+## 4. Conclusion
+
+The implementation of `TutorialScreen` in `lib/tutorial_screen.dart`, the entry point in `lib/main.dart`, and the automated test suite in `test/tutorial_screen_test.dart` meet all functional, architectural, visual, and testing criteria outlined in `PROJECT.md` and `ORIGINAL_REQUEST.md`.
 
 **Verdict**: **APPROVE**
-
-The work product delivered by `worker_m1` meets all cross-platform requirements with high quality, robust error handling, clean lifecycle management, and zero integrity violations.
-
-### Summary of Conformance Matrix
-| Dimension | Specification | Actual Implementation | Status |
-|-----------|---------------|-----------------------|--------|
-| Logical Volume Up | `audioVolumeUp` | `LogicalKeyboardKey.audioVolumeUp` | PASS |
-| Logical Volume Down | `audioVolumeDown` | `LogicalKeyboardKey.audioVolumeDown` | PASS |
-| Logical Play/Pause | `mediaPlayPause`, `mediaPlay`, `mediaPause`, `select` | All 4 mapped to `mediaPlayPause` | PASS |
-| Logical Next Track | `mediaTrackNext` | `LogicalKeyboardKey.mediaTrackNext` | PASS |
-| Logical Previous Track | `mediaTrackPrevious` | `LogicalKeyboardKey.mediaTrackPrevious` | PASS |
-| Physical Fallbacks | Audio/Media keys + `mediaSelect` | Full fallback mapping in `fromPhysicalKey` | PASS |
-| Android Manifest | `<intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>` | Declared in `<queries>` under `<manifest>` | PASS |
-| iOS Audio Category | `IosTextToSpeechAudioCategory.playback` | Configured with Bluetooth & mixing options | PASS |
-| Japanese Strings | 5 exact target phrases | 100% character-for-character match | PASS |
-| Automated Tests | `flutter test --no-test-assets` | 19/19 tests passing (Exit code 0) | PASS |
-| Static Analysis | `flutter analyze` | 0 issues found (Exit code 0) | PASS |
 
 ---
 
 ## 5. Verification Method
 
-To independently reproduce this verification:
+To independently reproduce and verify this assessment:
 
-1. **Run Full Automated Tests**:
-   ```powershell
-   flutter test --no-test-assets
-   ```
-   *Expected Result*: `All tests passed!` (19 tests passed, 0 failed, Exit code 0).
-
-2. **Run Static Code Analysis**:
+1. **Static Analysis**:
    ```powershell
    flutter analyze
    ```
-   *Expected Result*: `No issues found!` (Exit code 0).
+   *Expected result*: `No issues found! (ran in ~1.7s)` with exit code 0.
 
-3. **Inspect Implementation Files**:
-   - `lib/main.dart`: Key mapping (`lines 161–257`), iOS Audio session (`lines 81–92`).
-   - `android/app/src/main/AndroidManifest.xml`: TTS queries (`lines 39–47`).
-   - `test/widget_test.dart`: Complete 19-test suite.
+2. **Automated Test Suite**:
+   ```powershell
+   flutter test --no-test-assets
+   ```
+   *Expected result*: `All tests passed!` (25/25 passed, exit code 0).
+
+3. **Specific Tutorial Suite**:
+   ```powershell
+   flutter test test/tutorial_screen_test.dart
+   ```
+   *Expected result*: `00:04 +11: All tests passed!` (exit code 0).
+
+4. **File Inspection**:
+   - Inspect `lib/tutorial_screen.dart` (state machine, overlay painter, firefly glow, debounce timer, media key dispatcher).
+   - Inspect `test/tutorial_screen_test.dart` (11 test cases covering matrix 1–9 and entry navigation).

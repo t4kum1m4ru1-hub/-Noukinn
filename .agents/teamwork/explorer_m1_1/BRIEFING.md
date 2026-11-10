@@ -1,45 +1,51 @@
-# BRIEFING — 2026-11-05T23:47:30Z
+# BRIEFING — 2026-11-10T10:20:00Z
 
 ## Mission
-Formulate exact implementation specification and complete code for `lib/main.dart` fulfilling R1-R4, including TtsService abstraction, ButtonAction mapping, HardwareKeyboard event listener, dark-mode verification UI, and defensive error handling.
+Formulate the exact state machine and audio/key management implementation design for TutorialScreen in lib/tutorial_screen.dart (Milestone 1).
 
 ## 🔒 My Identity
 - Archetype: explorer
-- Roles: Teamwork explorer
-- Working directory: c:\Users\taqmi\02_development\original_program\button_controll_test\.agents\teamwork\explorer_m1_1\
-- Original parent: 4c8ae3a7-ebb5-4c14-9019-42e6ab31053f
-- Milestone: milestone_1
+- Roles: investigation, state machine & audio/key management design
+- Working directory: c:\Users\taqmi\02_development\original_program\noukin_app
+- State folder: c:\Users\taqmi\02_development\original_program\noukin_app\.agents\teamwork\explorer_m1_1\
+- Original parent: 2710972e-05b0-491e-8e81-953af37d2751
+- Milestone: milestone_1 (TutorialScreen State Machine & Audio/Key Management Design)
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement directly in `lib/main.dart` (propose code and specifications in our folder and handoff.md)
-- Adhere to Teamwork protocol and layout compliance
-- Support R1 (HardwareKeyboard / KeyDownEvent), R2 (Physical + Logical mappings for VolumeUp, VolumeDown, MediaPlayPause/Select, MediaTrackNext, MediaTrackPrevious), R3 (TtsService abstraction with FlutterTtsService and FakeTtsService), R4 (Dark-mode UI with centered key and timestamped log)
+- Read-only investigation — do NOT implement directly in project code
+- Detailed specifications for TutorialStep enum (step1 to step6) and step3 sub-phase
+- Exact KeyEventChannelDispatcher listener lifecycle
+- Keycode mapping (85/79, 87, 88, 24, 25)
+- Step transitions, Step 4 debounce timer (0.7s) logic for +/-2.5kg
+- Audio method _speak(String text) ducking / await stop
+- Concrete architecture guidelines for Worker
 
 ## Current Parent
-- Conversation ID: 4c8ae3a7-ebb5-4c14-9019-42e6ab31053f
+- Conversation ID: 2710972e-05b0-491e-8e81-953af37d2751
 - Updated: not yet
 
 ## Investigation State
 - **Explored paths**:
-  - `ORIGINAL_REQUEST.md` (R1-R5 analysis)
-  - `PROJECT.md` (architecture, interface contracts)
-  - `survey_explorer_3/handoff.md` and `survey_spec_miner_2/handoff.md` (TTS, key mapping, testability findings)
-  - Flutter SDK `keyboard_key.g.dart` & `hardware_keyboard.dart`
+  - `lib/main.dart` (lines 55-520, 674-703: AudioDuckingController, SoundEffectService, TtsService, KeyEventChannelDispatcher, ButtonControlScreen)
+  - `lib/training_controller.dart` (lines 180-215, 510-547: debounce timer with frame pump, weight format, audio integration)
+  - `lib/training_screen.dart` (lines 1-125: KeyEventChannelDispatcher lifecycle, Focus keyboard handler)
+  - `test/widget_test.dart` (lines 1-599: sendNativeKeyEvent, FakeTtsService, FakeSoundEffectService, TimelineDuckingController)
+  - `.agents/teamwork/survey_spec_miner_2/analysis.md`
+  - `.agents/teamwork/survey_explorer_3/analysis.md`
 - **Key findings**:
-  - `HardwareKeyboard.instance.addHandler` filtering `KeyDownEvent` avoids duplicate speech and log entries.
-  - LogicalKeyboardKey and PhysicalKeyboardKey constants verified for all 5 target operations plus discrete mediaPlay/Pause/Select.
-  - `TtsService` interface enables production `FlutterTtsService` and test fake `FakeTtsService` without requiring external mocking frameworks.
-  - Defensive error handling (`try/catch`) on all native TTS calls and post-frame callback `mounted` guards prevent runtime crashes.
-- **Unexplored areas**: None for M1 core implementation specification.
+  - `KeyEventChannelDispatcher` dispatches events to `_listeners.last`, so registering in `initState` and unregistering in `dispose` cleanly isolates topmost screen.
+  - Calling `await ttsService?.stop()` prior to `speak()` prevents overlapping speech and satisfies AC.
+  - Periodic `scheduleFrame` pulse inside 0.7s debounce timer enables `pumpAndSettle()` in widget tests without pending timer errors.
+- **Unexplored areas**: None for state machine and audio/key management design.
 
 ## Key Decisions Made
-- Implemented `ButtonAction.fromKeyEvent` checking `fromLogicalKey` first with fallback to `fromPhysicalKey`.
-- Wrapped `FlutterTtsService` invocations in `try/catch` and added iOS audio category options.
-- Completed and saved standalone reference implementation to `proposed_main.dart` and `handoff.md`.
+- Formulated 6-step state machine (`TutorialStep.step1Intro` to `TutorialStep.step6Complete`) and 2-phase Step 3 (`Step3Phase.enterMode`, `Step3Phase.cycleItem`).
+- Designed single key input pipeline routing native keyevents, PC shortcuts, and virtual key bar taps.
+- Detailed debounce timer cancellation on early confirm, skip, or dispose.
 
 ## Artifact Index
-- DISPATCH.md — Incoming parent instructions
-- BRIEFING.md — Persistent context & state
-- progress.md — Liveness heartbeat
-- proposed_main.dart — Complete proposed code for `lib/main.dart`
+- DISPATCH.md — incoming dispatch instructions
+- BRIEFING.md — persistent working memory
+- progress.md — liveness heartbeat
+- analysis.md — comprehensive technical analysis & design
 - handoff.md — 5-component handoff report

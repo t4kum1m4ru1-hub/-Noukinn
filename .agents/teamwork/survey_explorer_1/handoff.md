@@ -1,201 +1,151 @@
-# Handoff Report: Workspace Environment & Toolchain Survey
+# Handoff Report: noukin_app アーキテクチャ調査
 
-**Agent**: `survey_explorer_1` (Workspace Environment Explorer)  
-**Date**: 2026-11-06  
-**Target Directory**: `c:\Users\taqmi\02_development\original_program\button_controll_test`  
+## 1. Observation（直接の観察結果）
+
+### O1. `lib/main.dart`（`ButtonControlScreen` の構造と既存ボタン配置）
+- ファイルパス: `c:\Users\taqmi\02_development\original_program\noukin_app\lib\main.dart`
+- 行番号: 591〜718行目
+- `ButtonControlScreen` は `Scaffold` を返し、その `body` は `Column` で構成されています。
+- 既存の「トレーニング開始」ボタンは 674〜702行目に `Padding` ウィジェットとして配置されています：
+  ```dart
+  // メイン画面上部のトレーニング開始ボタン
+  Padding(
+    padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+    child: ElevatedButton.icon(
+      key: const Key('start_training_button'),
+      onPressed: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => TrainingScreen(
+              ttsService: widget.ttsService,
+              soundEffectService: widget.soundEffectService,
+            ),
+          ),
+        );
+      },
+      icon: const Icon(Icons.fitness_center),
+      label: const Text(
+        'トレーニング開始',
+        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+      ),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.tealAccent,
+        foregroundColor: Colors.black,
+        minimumSize: const Size.fromHeight(48),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
+    ),
+  ),
+  ```
+- その下には `Expanded(flex: 5, child: _buildCenterDisplay())`、`Divider`、`_buildLogHeader()`、`Expanded(flex: 5, child: _buildLogList())` が続きます（704〜716行目）。
+
+### O2. `lib/training_screen.dart`（引数仕様と画面遷移）
+- ファイルパス: `c:\Users\taqmi\02_development\original_program\noukin_app\lib\training_screen.dart`
+- 行番号: 16〜51行目
+- コンストラクタ定義（16〜26行目）：
+  ```dart
+  class TrainingScreen extends StatefulWidget {
+    final TtsService? ttsService;
+    final SoundEffectService? soundEffectService;
+    final TrainingController? controller;
+
+    const TrainingScreen({
+      super.key,
+      this.ttsService,
+      this.soundEffectService,
+      this.controller,
+    });
+  ```
+- 全パラメータが null 許容です。`controller` が渡されない場合、`initState()`（45〜50行目）にて自前で生成されます：
+  ```dart
+  _controller = TrainingController(
+    ttsService: widget.ttsService,
+    soundEffectService: widget.soundEffectService,
+    onWorkoutCompleted: _navigateToReviewScreen,
+  );
+  _ownsController = true;
+  ```
+- 戻り遷移: AppBar の leading（223行目）にて `Navigator.of(context).pop()`。
+- ワークアウト完了遷移: 80〜89行目にて `Navigator.of(context).push(MaterialPageRoute(builder: (context) => const ReviewScreen()))`。
+
+### O3. 音声サービスとダッキング制御の定義
+- ファイルパス: `c:\Users\taqmi\02_development\original_program\noukin_app\lib\main.dart`
+- 行番号: 59〜400行目
+  - **`AudioDuckingController`**（59〜156行目）：
+    - インターフェース: `configure()`, `requestDucking()`, `releaseDucking()`
+    - 本番実装: `AudioSessionDuckingController`（`audio_session` パッケージを利用し、iOS は `duckOthers`、Android は `AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK` を適用）
+    - テスト実装: `FakeAudioDuckingController`（`isCurrentlyDucked` とイベント履歴を管理）
+  - **`SoundEffectService`**（163〜200行目）：
+    - インターフェース: `playBeep()`
+    - 本番実装: `PlatformSoundEffectService`（`duckingController?.requestDucking()`、Android は `MethodChannel('com.example.noukin/key_events').invokeMethod('playBeep')`、システム音 `SystemSound.play(SystemSoundType.click)` を実行）
+    - テスト実装: `FakeSoundEffectService`（`beepCount` を保持）
+  - **`TtsService`**（208〜400行目）：
+    - インターフェース: `initialize()`, `speak(String text)`, `stop()`, `setVolume(double volume)`
+    - 本番実装: `FlutterTtsService`
+      - `speak()` 内で既に発話中の場合は `await _flutterTts.stop()` と最大80msの中断完了待機、ダッキング一時解除後に再ダッキング要求と `_flutterTts.speak()` を実施（317〜333行目）。
+      - 発話完了コールバック（`setCompletionHandler`、260〜263行目）および停止（`stop()`、342〜351行目）で確実にダッキングを解除。
+    - テスト実装: `FakeTtsService`（`spokenHistory`, `lastSpoken`, `stopCallCount`）
+
+### O4. 既存テストの実行結果
+- 実行コマンド: `flutter test`
+- 結果:
+  ```
+  00:04 +14: All tests passed!
+  ```
+  既存の全14テスト（ユニットテスト・ダッキングテスト・ウィジェットテスト・キーイベントテスト）が成功。
 
 ---
 
-## 1. Observation
+## 2. Logic Chain（観察から結論への論理展開）
 
-### 1.1 Workspace Directory Structure
-Direct inspection of `c:\Users\taqmi\02_development\original_program\button_controll_test` via PowerShell commands:
-- `Get-ChildItem -Force`:
-  ```
-  Mode                 LastWriteTime         Length Name
-  ----                 -------------         ------ ----
-  d-----        2026/11/06      8:24                .agents
-  ```
-- `Test-Path pubspec.yaml` returned `False`.
-- `Test-Path lib, test` returned `False, False`.
-- `git status` returned `fatal: not a git repository (or any of the parent directories): .git`.
-
-**Finding**: The workspace root currently contains only the `.agents/` directory. No Flutter project has been initialized yet (no `pubspec.yaml`, `lib/`, `test/`, `android/`, or `ios/` folders).
-
-### 1.2 Flutter SDK & Toolchain Status
-Running toolchain diagnostics:
-- Command: `flutter --version`
-  ```
-  Flutter 3.47.9 • channel stable • https://github.com/flutter/flutter.git
-  Framework • revision c197ca5199 (7 days ago) • 2026-10-29 10:10:20 -0400
-  Engine • hash 9e025265bef30b838c0c1b68cad19decf97048f2 (revision 89c39edfdf) (9 days ago) • 2026-10-27 19:51:20.000Z
-  Tools • Dart 3.13.7 • DevTools 2.60.0
-  ```
-- Command: `flutter doctor`
-  ```
-  Doctor summary (to see all details, run flutter doctor -v):
-  [√] Flutter (Channel stable, 3.47.9, on Microsoft Windows [Version 10.0.26300.9818], locale ja-JP)
-  [√] Windows Version (Windows 11 or higher, 26H2, 2009)
-  [!] Android toolchain - develop for Android devices (Android SDK version 36.0.0)
-      X cmdline-tools component is missing.
-      X Android license status unknown.
-  [√] Chrome - develop for the web
-  [X] Visual Studio - develop Windows apps
-  [√] Connected device (3 available: Windows desktop, Chrome, Edge)
-  [√] Network resources
-  ```
-- Command: `flutter pub get`
-  ```
-  Expected to find project root in current working directory.
-  (Exit code: 1)
-  ```
-- Command: `flutter test`
-  ```
-  Test directory "test" not found.
-  (Exit code: 1)
-  ```
-
-### 1.3 Local Environment Dependency Reference (from sister project `noukin_app`)
-Inspecting `c:\Users\taqmi\02_development\original_program\noukin_app\noukin_app`:
-- In `pubspec.yaml`:
-  - `environment: sdk: ^3.13.7`
-  - `flutter_tts: ^4.0.0`
-  - `flutter_lints: ^6.0.0`
-- In `pubspec.lock`:
-  - `flutter_tts` resolved to version `4.2.5` (hosted on pub.dev, cached locally).
-- In `android/app/build.gradle.kts`:
-  - Modern Kotlin DSL Gradle setup with `minSdk = flutter.minSdkVersion` (21+) and Java 17.
-- In `android/app/src/main/AndroidManifest.xml`:
-  - Included queries element for TTS service:
-    ```xml
-    <queries>
-        <intent>
-            <action android:name="android.intent.action.TTS_SERVICE" />
-        </intent>
-    </queries>
-    ```
+1. **ボタン配置の安全性（O1より）**:
+   `ButtonControlScreen` の `body` は `Column` であり、既存の「トレーニング開始」ボタン `Padding` の直下に新規ウィジェットを直接配置可能です。残りのスペースは上下二分割された `Expanded(flex: 5)` が担っているため、ボタンを追加してもレイアウトオーバーフローを起こすことなく自然に縦幅が調整されます。
+2. **画面遷移の互換性と独立性（O2より）**:
+   `TrainingScreen` の引数はすべてオプショナルであり、`ttsService` と `soundEffectService` を渡すだけで安全に初期化・画面表示されます。`ORIGINAL_REQUEST.md` の要求通り、`lib/training_screen.dart` を1行も修正することなく、`TutorialScreen` 側から `Navigator.of(context).pushReplacement` を呼び出すことで、チュートリアルからトレーニング本編へのシームレスな引き継ぎが可能です。
+3. **音声多重発話防止とダッキング整合性（O3より）**:
+   `FlutterTtsService` は自身でダッキングの獲得・解放と重複発話キャンセル機構を持っています。`TutorialScreen` ではステップ変更時やスキップ時に明示的に `await ttsService?.stop();` を呼び出してから新しい音声を `speak()` することで、要件 R2（前のTTS音声が重ならず停止してから開始、BGMダッキングの漏れなき適用）を100%満たすことができます。
+4. **テスト容易性（O3, O4より）**:
+   既存テストスイートで利用されている `FakeTtsService`、`FakeSoundEffectService`、`sendNativeKeyEvent` ヘルパーをそのまま活用することで、モック不要で Step 1 〜 Step 6 のキーイベント進行を高速かつ安定して検証できます。
 
 ---
 
-## 2. Logic Chain
+## 3. Caveats（制約事項・考慮点）
 
-1. **Project Genesis Requirement**:
-   - Because `pubspec.yaml`, `lib/`, and `test/` do not exist, a Flutter application project structure must be initialized in the workspace before source implementation or testing can take place.
-   - Using `flutter create . --project-name button_controll_test --platforms android,ios` safely initializes standard Flutter project scaffolds in the current directory without altering the existing `.agents/` folder.
-
-2. **SDK Constraints and Dependencies**:
-   - The active toolchain is Flutter `3.47.9` with Dart `3.13.7`.
-   - The user request requires `flutter_tts` for Japanese spoken audio feedback.
-   - Version `flutter_tts: ^4.2.5` (or `^4.0.0`) is fully compatible with Dart `3.13.7` and is already validated and cached in the local environment.
-
-3. **Android Configuration Constraint**:
-   - Starting from Android 11 (API Level 30), package visibility limits which external packages/services an app can discover.
-   - To query and bind to the system Text-to-Speech service (e.g. Google Text-to-Speech engine), `<queries><intent><action android:name="android.intent.action.TTS_SERVICE" /></intent></queries>` must be placed within `AndroidManifest.xml`. Without this, `flutter_tts` may fail to discover voices or produce audio on modern Android devices.
-
-4. **Automated Testing (`flutter test`) Environment Constraint**:
-   - `flutter test` executes inside a headless Dart VM without native host platform plugins (i.e. no native Android `TextToSpeech` or iOS `AVSpeechSynthesizer` channel backend).
-   - Attempting to call `flutter_tts.speak()` directly during widget tests triggers a `MissingPluginException`.
-   - **Architectural implication**: The design of `lib/main.dart` must decouple TTS invocation via an injectable abstraction (e.g., a `TtsService` interface or an optional `onSpeak` callback function property in the main widget/controller). This enables automated widget tests to simulate hardware key events and assert speech trigger invocations cleanly without throwing missing plugin exceptions or requiring external mocking libraries.
-
-5. **Hardware Key Event Capture**:
-   - Key event interception via `flutter/services.dart` (`HardwareKeyboard.instance.addHandler` or `Focus(onKeyEvent: ...)`) operates natively across Flutter desktop, mobile keyboards, and simulated test environments (`WidgetTester.sendKeyEvent`).
-   - Registering a listener via `HardwareKeyboard.instance.addHandler` captures physical keys globally regardless of which widget has focus, and can be cleanly deregistered in `dispose()` via `HardwareKeyboard.instance.removeHandler`.
+1. **`lib/training_screen.dart` の不変性**:
+   本要件では `lib/training_screen.dart` へのコード変更は禁止されています。すべてのチュートリアル機能は `lib/tutorial_screen.dart` 内に完結させる必要があります。
+2. **発話文言の表記揺れ（「キロ」 vs 「kg」）**:
+   `ORIGINAL_REQUEST.md` の記述では「60キロ」「62.5キロ」「65キロ」と日本語カタカナで指定されています（`TrainingController` 内部では `${formatWeightNumber(weight)}kg`）。TTSエンジンやテストの検証文字列において表記不整合が発生しないよう、`TutorialScreen` の実装および自動テストでは `ORIGINAL_REQUEST.md` に記載された指定文字列（「60キロ」等）に厳密に一致させる必要があります。
+3. **Android ネイティブキーコードとの一致**:
+   再生/停止（85, 79）、次曲（87）、前曲（88）、音量UP/DOWN（24, 25）の6種類以外のキーはチュートリアル中に無視するか、必要に応じて画面上に注意案内を出す必要があります。
 
 ---
 
-## 3. Caveats
+## 4. Conclusion（結論・推奨アクション）
 
-1. **No Physical Mobile Devices Connected**:
-   - Currently connected devices detected by `flutter devices` are `Windows (desktop)`, `Chrome (web)`, and `Edge (web)`. Physical Android/iOS mobile devices are not plugged in. Verification of native mobile OS volume HUD behavior will rely on platform specification analysis and automated tests.
-2. **Android Command-Line Tools**:
-   - `flutter doctor` noted missing Android Studio `cmdline-tools` and unknown license status. This affects native Android APK builds (`flutter build apk`), but does NOT affect `flutter test`, Dart analysis, or running under desktop/web environments.
-3. **Pure Investigation Boundary**:
-   - As an explorer in read-only mode, project scaffolding (`flutter create`) has not been executed yet. The implementer/builder agent must execute the creation step.
-
----
-
-## 4. Conclusion
-
-1. **Workspace Readiness**:
-   - The workspace is in a clean initial state.
-   - Implementation should start by running `flutter create . --project-name button_controll_test --platforms android,ios` (or with additional desktop/web platforms if desired) to generate the baseline Flutter scaffolding.
-
-2. **Required Dependency Configuration (`pubspec.yaml`)**:
-   ```yaml
-   name: button_controll_test
-   description: "A minimal cross-platform Flutter physical button and media key verification app."
-   publish_to: 'none'
-   version: 1.0.0+1
-
-   environment:
-     sdk: ^3.13.7
-
-   dependencies:
-     flutter:
-       sdk: flutter
-     flutter_tts: ^4.2.5
-     cupertino_icons: ^1.0.8
-
-   dev_dependencies:
-     flutter_test:
-       sdk: flutter
-     flutter_lints: ^6.0.0
-   ```
-
-3. **Android Platform Configuration**:
-   - Ensure `android/app/src/main/AndroidManifest.xml` includes:
-     ```xml
-     <queries>
-         <intent>
-             <action android:name="android.intent.action.TTS_SERVICE" />
-         </intent>
-     </queries>
-     ```
-
-4. **Architecture Recommendation for `lib/main.dart`**:
-   - Implement `TtsController` or an injectable `TtsService` interface with a default `FlutterTts` implementation and a testable stub/mock.
-   - Use `HardwareKeyboard.instance.addHandler` for global key interception.
-   - Map key events:
-     - Volume Up: `LogicalKeyboardKey.audioVolumeUp`
-     - Volume Down: `LogicalKeyboardKey.audioVolumeDown`
-     - Play/Pause: `LogicalKeyboardKey.mediaPlayPause`, `LogicalKeyboardKey.mediaPlay`, `LogicalKeyboardKey.mediaPause`
-     - Next Track: `LogicalKeyboardKey.mediaTrackNext`
-     - Previous Track: `LogicalKeyboardKey.mediaTrackPrevious`
-
-5. **Automated Test Design (`test/widget_test.dart`)**:
-   - Use `WidgetTester.sendKeyEvent(LogicalKeyboardKey...)` to simulate all 5 required key categories.
-   - Inject a mock/recording TTS service to assert that the corresponding Japanese TTS phrase was passed to `speak()` and that the UI center display and log list updated with the event.
+1. **新規ファイル `lib/tutorial_screen.dart` の作成**:
+   - `TtsService?` と `SoundEffectService?` を受け取る `StatefulWidget` として実装する。
+   - 暗転オーバーレイ（Black 70%）、ホタル発光アニメーション枠線（`AnimationController` ＋ `boxShadow`）、控えめなスキップボタン、最下部疑似メディアキーバーを配置する。
+   - Step 1 〜 Step 6 のステートマシンを内部で保持し、各キーイベントに応じた電子音再生、TTS発話（必ず直前 `stop()`）、画面更新を実行する。
+   - 完了時およびスキップ時は `Navigator.of(context).pushReplacement` で `TrainingScreen` へ遷移する。
+2. **`lib/main.dart` へのエントリーボタン追加**:
+   - 674行目の `start_training_button` の直下に、`start_tutorial_button`（「操作チュートリアルを体験する」）を追加する。
+3. **自動テストの作成**:
+   - `test/tutorial_test.dart`（または既存テストファイル）に全6ステップの自動 Widget テストを作成し、全テストパス（exit code 0）を担保する。
 
 ---
 
-## 5. Verification Method
+## 5. Verification Method（独立検証手順）
 
-Once the implementer generates the project and code:
-
-1. **Verify Project Creation**:
-   ```powershell
-   Test-Path pubspec.yaml, lib/main.dart, test/widget_test.dart
-   # Expected output: True, True, True
-   ```
-
-2. **Verify Dependencies Resolution**:
-   ```powershell
-   flutter pub get
-   # Expected exit code: 0
-   ```
-
-3. **Verify Static Code Quality**:
-   ```powershell
-   flutter analyze
-   # Expected output: No issues found!
-   ```
-
-4. **Verify Automated Tests**:
+1. **コード配置の確認**:
+   - `lib/main.dart` の 674〜702行目付近を `read_file` で閲覧し、「トレーニング開始」ボタンの構造と直下のレイアウトを確認する。
+   - `lib/training_screen.dart` の 16〜30行目および 80〜90行目を閲覧し、コンストラクタ引数および画面遷移を確認する。
+2. **テストコマンドの実行**:
    ```powershell
    flutter test
-   # Expected output: All tests passed!
    ```
-
-5. **Invalidation Conditions**:
-   - If `flutter test` fails with `MissingPluginException: No implementation found for method speak on channel flutter_tts`, the TTS dependency was not properly abstracted/mocked in tests.
-   - If `flutter pub get` fails due to SDK mismatch, verify Dart SDK constraint is `^3.13.7`.
+   - 期待値: 14 tests passed, exit code 0。
+3. **無効化条件**:
+   - `lib/training_screen.dart` に変更が加わった場合。
+   - `flutter test` の既存テストが破損した場合。

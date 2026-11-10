@@ -1,16 +1,20 @@
 # Progress — explorer_m1_2
 
-Last visited: 2026-11-05T23:46:15Z
+Last visited: 2026-11-10T10:21:00Z
 Status: Complete
 
 ## Completed
-- Initialized DISPATCH.md and BRIEFING.md.
-- Examined ORIGINAL_REQUEST.md, PROJECT.md, survey_spec_miner_2/handoff.md, and survey_explorer_3/handoff.md.
-- Verified LogicalKeyboardKey constants and controller.dart key event simulation APIs in Flutter SDK.
-- Designed comprehensive 3-tier automated test suite for test/widget_test.dart.
-- Formulated test isolation mechanism via FakeTtsService injection into ButtonControlApp.
-- Authored final handoff report at `c:\Users\taqmi\02_development\original_program\button_controll_test\.agents\teamwork\explorer_m1_2\handoff.md`.
-- Updated BRIEFING.md.
+- Initialized DISPATCH.md and updated BRIEFING.md.
+- Examined ORIGINAL_REQUEST.md, PROJECT.md, survey reports, and current codebase (`lib/training_screen.dart`, `lib/main.dart`, `lib/theme/app_colors.dart`, `test/widget_test.dart`).
+- Verified existing tests via `flutter test` (14/14 passed, exit code 0).
+- Formulated exact architecture for:
+  1. `SpotlightOverlayPainter` (CustomPainter difference path cutout with 70% black overlay).
+  2. Breathing firefly glow animation (`AnimationController` + dual `boxShadow` + `animateGlow: bool = true` test safety bypass).
+  3. Visual layouts, cards, and spotlight targets across all 6 steps.
+  4. Emergency presentation skip buttons (bottom right `btn_tutorial_skip`, Step 1 `btn_skip_to_training`, and screen tap fallback).
+  5. Bottom virtual media key bar layout and z-index positioning (`_buildMediaControlBar`).
+  6. Concrete implementation guidelines for Worker.
+- Produced detailed `analysis.md` and 5-component `handoff.md` in state folder.
 
 ## Next Steps
-- Notify orchestrator via send_message.
+- Send completion message to parent orchestrator.

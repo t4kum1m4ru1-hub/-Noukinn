@@ -41,8 +41,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'training_screen.dart';
+import 'tutorial_screen.dart';
 
 export 'training_screen.dart';
+export 'tutorial_screen.dart';
 
 /// Android ネイティブ層（MainActivity.kt）と通信する MethodChannel 名
 const String kKeyEventsChannelName = 'com.example.noukin/key_events';
@@ -694,6 +696,37 @@ class _ButtonControlScreenState extends State<ButtonControlScreen> {
                 backgroundColor: Colors.tealAccent,
                 foregroundColor: Colors.black,
                 minimumSize: const Size.fromHeight(48),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+          ),
+          // 操作チュートリアル体験ボタン
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            child: ElevatedButton.icon(
+              key: const Key('start_tutorial_button'),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => TutorialScreen(
+                      ttsService: widget.ttsService,
+                      soundEffectService: widget.soundEffectService,
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.school_outlined),
+              label: const Text(
+                '操作チュートリアルを体験する',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF242B28),
+                foregroundColor: Colors.tealAccent,
+                side: const BorderSide(color: Colors.tealAccent, width: 1.2),
+                minimumSize: const Size.fromHeight(44),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),

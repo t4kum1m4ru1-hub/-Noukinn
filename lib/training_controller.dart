@@ -133,11 +133,6 @@ class TrainingController extends ChangeNotifier {
   /// 状態C（階層2）で「種目名」を調整している際のプレビュー候補インデックス
   int _candidateExerciseIndex = 0;
 
-  /// 状態C（階層2）突入時のスナップショット（破棄・戻る用）
-  double _snapshotWeight = 60.0;
-  int _snapshotReps = 10;
-  int _snapshotSets = 3;
-
   /// 音声ガイドの音量 (0.0 - 1.0)
   double _volume = 0.8;
 
@@ -215,11 +210,31 @@ class TrainingController extends ChangeNotifier {
   }
 
   // --------------------------------------------------------------------------
-  // メディアキー・物理ボタン統合ディスパッチ
+  // メディアキー・物理ボタン統合ディスパッチ（最新仕様）
+  // --------------------------------------------------------------------------
+  // ①［次の曲へ進む］(MEDIA_NEXT / 87) ➔ 調整モードのトグルボタン
+  //    - 通常モード時: 調整モード（階層1：項目選択）へ移行（「調整、{項目名}」）
+  //    - 調整モード時（階層1・階層2共通）: 調整を確定完了して通常モードへ一発復帰
+  //      （「確定、開始、{種目名}、{重量}kg、{レップ数}回、{セット数}セット」）
+  // ②［再生 / 停止］(MEDIA_PLAY_PAUSE / 85, HEADSETHOOK / 79) ➔ アクション / 決定ボタン
+  //    - 通常モード時: 開始前➔開始 / 進行中➔次種目へ / 最終種目➔完了画面へ
+  //    - 調整モード（階層1）時: 選択中の項目を決定し、階層2（値の調整）へ移行（電子音＋現在値発話）
+  //    - 調整モード（階層2）時: 変更した数値を決定し、階層1（項目選択）へ戻る（電子音＋「調整、{項目名}」）
+  // ③［前の曲へ戻る］(MEDIA_PREVIOUS / 88) ➔ 種目内容の確認ボタン（全モード共通・安全ボタン）
+  //    - どの状態から押しても状態遷移せず「{種目名}、{重量}kg、{レップ数}回、{セット数}セット」を発話
+  // ④［音量 UP / DOWN］(VOLUME_UP / 24, VOLUME_DOWN / 25)
+  //    - 通常モード時: 無効（トレーニング数値は変更しない）
+  //    - 階層1（項目選択）時: 項目送り ＋ 電子音 ＋ 項目名発話
+  //    - 階層2（値の調整）時: 数値増減 ＋ 即時電子音 ＋ 0.7秒デバウンスTTS発話
   // --------------------------------------------------------------------------
 
-  /// 6種類の物理ボタン・メディアキー入力を現在の状態（A/B/C）に応じて処理する
   void handleButtonAction(ButtonAction action) {
+    // ③［前の曲へ戻る］は全モード共通で種目内容の確認読み上げのみを行う（安全ボタン）
+    if (action == ButtonAction.mediaPrevious) {
+      onConfirmCurrentStatus();
+      return;
+    }
+
     switch (_mode) {
       case TrainingMode.normal:
         _handleNormalModeButton(action);
@@ -239,18 +254,15 @@ class TrainingController extends ChangeNotifier {
       case ButtonAction.headsetHook:
         onPlayPauseOrNextPressed();
         break;
-      case ButtonAction.mediaPrevious:
-        onConfirmCurrentStatus();
-        break;
       case ButtonAction.mediaNext:
         enterAdjustSelectMode();
         break;
-      case ButtonAction.volumeUp:
-        // 通常モードでの音量UPキー押下時は現在選択対象（デフォルト重量）を即時調整＋デバウンス発話
-        adjustWeightDirect(2.5);
+      case ButtonAction.mediaPrevious:
+        onConfirmCurrentStatus();
         break;
+      case ButtonAction.volumeUp:
       case ButtonAction.volumeDown:
-        adjustWeightDirect(-2.5);
+        // 通常モード時は無効（誤操作防止）
         break;
     }
   }
@@ -263,15 +275,15 @@ class TrainingController extends ChangeNotifier {
       case ButtonAction.volumeDown:
         cycleAdjustmentTarget(step: -1);
         break;
-      case ButtonAction.mediaNext:
-        enterAdjustValueMode();
-        break;
-      case ButtonAction.mediaPrevious:
-        finishAdjustmentAndStart();
-        break;
       case ButtonAction.mediaPlayPause:
       case ButtonAction.headsetHook:
         enterAdjustValueMode();
+        break;
+      case ButtonAction.mediaNext:
+        finishAdjustmentAndStart();
+        break;
+      case ButtonAction.mediaPrevious:
+        onConfirmCurrentStatus();
         break;
     }
   }
@@ -284,22 +296,25 @@ class TrainingController extends ChangeNotifier {
       case ButtonAction.volumeDown:
         adjustCurrentTargetValue(increase: false);
         break;
-      case ButtonAction.mediaNext:
       case ButtonAction.mediaPlayPause:
       case ButtonAction.headsetHook:
         confirmAdjustValue();
         break;
+      case ButtonAction.mediaNext:
+        // 階層2からでも変更値を確定反映して一発で通常モードへ復帰
+        finishAdjustmentAndStart();
+        break;
       case ButtonAction.mediaPrevious:
-        cancelAdjustValue();
+        onConfirmCurrentStatus();
         break;
     }
   }
 
   // --------------------------------------------------------------------------
-  // 状態A：通常モードのアクション
+  // 各アクションメソッド
   // --------------------------------------------------------------------------
 
-  /// ［再生/停止］または画面の「開始 / 次へ」ボタン押下
+  /// ［再生/停止］（通常モード時）または画面の「開始 / 次へ」ボタン押下
   void onPlayPauseOrNextPressed() {
     _cancelDebounce();
 
@@ -322,13 +337,13 @@ class TrainingController extends ChangeNotifier {
     }
   }
 
-  /// ［前の曲へ］または画面の「確認」ボタン押下
+  /// ［前の曲へ戻る］（全モード共通）または画面の「内容確認」ボタン押下
   void onConfirmCurrentStatus() {
     _cancelDebounce();
     _speak(currentSummarySpeech);
   }
 
-  /// ［次の曲へ］または画面の「調整」ボタン押下 ➔ 状態B（階層1）へ移行
+  /// 通常モードで［次の曲へ進む］押下 ➔ 調整モード（階層1：項目選択）へ移行
   void enterAdjustSelectMode({AdjustmentTarget? initialTarget}) {
     _cancelDebounce();
     _mode = TrainingMode.adjustSelect;
@@ -338,11 +353,7 @@ class TrainingController extends ChangeNotifier {
     _speak('調整、${_selectedTarget.label}');
   }
 
-  // --------------------------------------------------------------------------
-  // 状態B：調整モード・階層1（調整項目の選択）のアクション
-  // --------------------------------------------------------------------------
-
-  /// ［音量UP / 音量DOWN］または画面の「項目送り」ボタン押下
+  /// 階層1で［音量UP / 音量DOWN］押下 ➔ 項目送り ＋ 電子音 ＋ 項目名発話
   void cycleAdjustmentTarget({int step = 1}) {
     _cancelDebounce();
     soundEffectService.playBeep();
@@ -357,50 +368,17 @@ class TrainingController extends ChangeNotifier {
     _speak(_selectedTarget.label);
   }
 
-  /// 状態Bで特定の項目を直接選択する
-  void selectAdjustmentTarget(AdjustmentTarget target) {
-    _cancelDebounce();
-    soundEffectService.playBeep();
-    _selectedTarget = target;
-    if (_mode == TrainingMode.normal) {
-      _mode = TrainingMode.adjustSelect;
-      notifyListeners();
-      _speak('調整、${_selectedTarget.label}');
-    } else {
-      notifyListeners();
-      _speak(_selectedTarget.label);
-    }
-  }
-
-  /// 状態Bで［次の曲へ］（決定）または画面の「決定」ボタン押下 ➔ 状態C（階層2）へ移行
+  /// 階層1で［再生/停止］（決定）押下 ➔ 階層2（数値・値の調整）へ移行
   void enterAdjustValueMode() {
     _cancelDebounce();
-    final current = _exercises[_currentExerciseIndex];
-    _snapshotWeight = current.weight;
-    _snapshotReps = current.reps;
-    _snapshotSets = current.sets;
     _candidateExerciseIndex = _currentExerciseIndex;
-
     _mode = TrainingMode.adjustValue;
     soundEffectService.playBeep();
     notifyListeners();
     _speak(speechForTargetValue(_selectedTarget));
   }
 
-  /// 状態Bで［前の曲へ］（終了）または画面の「確定/完了」ボタン押下 ➔ 状態Aへ復帰
-  void finishAdjustmentAndStart() {
-    _cancelDebounce();
-    _mode = TrainingMode.normal;
-    _isStarted = true;
-    notifyListeners();
-    _speak('確定、開始、$currentSummarySpeech');
-  }
-
-  // --------------------------------------------------------------------------
-  // 状態C：調整モード・階層2（数値・値の調整）のアクション
-  // --------------------------------------------------------------------------
-
-  /// 状態Cでの［音量UP / 音量DOWN］による値増減（電子音＋リアルタイムUI更新＋0.7秒デバウンスTTS）
+  /// 階層2での［音量UP / 音量DOWN］による値増減（電子音＋リアルタイムUI更新＋0.7秒デバウンスTTS）
   void adjustCurrentTargetValue({required bool increase}) {
     switch (_selectedTarget) {
       case AdjustmentTarget.exercise:
@@ -426,9 +404,29 @@ class TrainingController extends ChangeNotifier {
     }
   }
 
-  /// 状態Cで［次の曲へ］（決定）または画面の「決定」ボタン押下 ➔ 変更を保存して状態Bへ戻る
+  /// 階層2で［再生/停止］（決定）押下 ➔ 変更した数値を決定し、階層1（項目選択）へ戻る
   void confirmAdjustValue() {
     _cancelDebounce();
+    _commitCandidateExerciseSwapIfNeeded();
+    _mode = TrainingMode.adjustSelect;
+    soundEffectService.playBeep();
+    notifyListeners();
+    _speak('調整、${_selectedTarget.label}');
+  }
+
+  /// 調整モード（階層1・階層2共通）で［次の曲へ進む］押下 ➔ 調整を完了して通常モードへ一発復帰
+  void finishAdjustmentAndStart() {
+    _cancelDebounce();
+    if (_mode == TrainingMode.adjustValue) {
+      _commitCandidateExerciseSwapIfNeeded();
+    }
+    _mode = TrainingMode.normal;
+    _isStarted = true;
+    notifyListeners();
+    _speak('確定、開始、$currentSummarySpeech');
+  }
+
+  void _commitCandidateExerciseSwapIfNeeded() {
     if (_selectedTarget == AdjustmentTarget.exercise &&
         _candidateExerciseIndex != _currentExerciseIndex) {
       final temp = _exercises[_currentExerciseIndex];
@@ -436,24 +434,6 @@ class TrainingController extends ChangeNotifier {
       _exercises[_candidateExerciseIndex] = temp;
       _candidateExerciseIndex = _currentExerciseIndex;
     }
-    _mode = TrainingMode.adjustSelect;
-    notifyListeners();
-    _speak('調整、${_selectedTarget.label}');
-  }
-
-  /// 状態Cで［前の曲へ］（破棄）または画面の「戻る」ボタン押下 ➔ 変更を破棄して状態Bへ戻る
-  void cancelAdjustValue() {
-    _cancelDebounce();
-    final current = _exercises[_currentExerciseIndex];
-    current.weight = _snapshotWeight;
-    current.reps = _snapshotReps;
-    current.sets = _snapshotSets;
-    _candidateExerciseIndex = _currentExerciseIndex;
-
-    _mode = TrainingMode.adjustSelect;
-    soundEffectService.playBeep();
-    notifyListeners();
-    _speak('戻る、${_selectedTarget.label}');
   }
 
   // --------------------------------------------------------------------------
@@ -463,7 +443,7 @@ class TrainingController extends ChangeNotifier {
   /// 重量の直接増減（±2.5kg）：電子音即再生 ＋ UI即時更新 ＋ 0.7秒デバウンスTTS
   void adjustWeightDirect(double delta) {
     soundEffectService.playBeep();
-    final ex = _exercises[_currentExerciseIndex];
+    final ex = displayedExercise;
     final nextWeight = ex.weight + delta;
     ex.weight = nextWeight < 0.0 ? 0.0 : nextWeight;
     notifyListeners();
@@ -475,7 +455,7 @@ class TrainingController extends ChangeNotifier {
   /// レップ数の直接増減（±1回）：電子音即再生 ＋ UI即時更新 ＋ 0.7秒デバウンスTTS
   void adjustRepsDirect(int delta) {
     soundEffectService.playBeep();
-    final ex = _exercises[_currentExerciseIndex];
+    final ex = displayedExercise;
     final nextReps = ex.reps + delta;
     ex.reps = nextReps < 0 ? 0 : nextReps;
     notifyListeners();
@@ -487,7 +467,7 @@ class TrainingController extends ChangeNotifier {
   /// セット数の直接増減（±1セット）：電子音即再生 ＋ UI即時更新 ＋ 0.7秒デバウンスTTS
   void adjustSetsDirect(int delta) {
     soundEffectService.playBeep();
-    final ex = _exercises[_currentExerciseIndex];
+    final ex = displayedExercise;
     final nextSets = ex.sets + delta;
     ex.sets = nextSets < 1 ? 1 : nextSets;
     notifyListeners();
@@ -565,4 +545,3 @@ class TrainingController extends ChangeNotifier {
     super.dispose();
   }
 }
-

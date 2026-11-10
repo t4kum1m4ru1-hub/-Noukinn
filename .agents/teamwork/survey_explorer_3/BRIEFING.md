@@ -1,45 +1,52 @@
-# BRIEFING — 2026-11-05T23:38:00Z
+# BRIEFING — 2026-11-10T10:11:00Z
 
 ## Mission
-Investigate `flutter_tts` integration, test mockability / abstraction architecture, and dark-mode verification UI architecture for a standalone `lib/main.dart` button control verification Flutter application.
+Investigate UI rendering and automated test architecture for `TutorialScreen` in `noukin_app`:
+1. Spotlight & dark overlay (70% opacity, punch-through/stacking) & breathing firefly glow animation (AnimationController + boxShadow).
+2. Skip button placement & virtual media key bar architecture.
+3. Existing test infrastructure inspection (mock/fake patterns for TTS, SoundEffectService, AudioDuckingController, DI in widgets).
+4. Automated widget test design for all 6 tutorial steps, key handling, and fallback UI.
 
 ## 🔒 My Identity
 - Archetype: teamwork_explorer
-- Roles: explorer, tts_architect, ui_architect
-- Working directory: c:\Users\taqmi\02_development\original_program\button_controll_test\.agents\teamwork\survey_explorer_3\
-- Original parent: 4c8ae3a7-ebb5-4c14-9019-42e6ab31053f
-- Milestone: Survey & Architecture Proposal
+- Roles: explorer, ui_rendering_architect, automated_test_architect
+- Working directory: c:\Users\taqmi\02_development\original_program\noukin_app
+- State folder: c:\Users\taqmi\02_development\original_program\noukin_app\.agents\teamwork\survey_explorer_3\
+- Original parent: 2710972e-05b0-491e-8e81-953af37d2751
+- Milestone: TutorialScreen Survey & Architecture Formulation
 
 ## 🔒 Key Constraints
 - Read-only investigation — do NOT implement production source code directly
-- Output structured analysis & architectural proposal in `handoff.md`
-- Self-contained `lib/main.dart` architecture must allow running standalone without manual dependency injection setup by user, while easily supporting mocking/stubbing in `test/widget_test.dart`
+- Output structured analysis & architectural proposal in `analysis.md` and `handoff.md`
+- Self-contained recommendations complying with Golden Rules (no external context assumptions, clear non-engineer explanations)
 
 ## Current Parent
-- Conversation ID: 4c8ae3a7-ebb5-4c14-9019-42e6ab31053f
-- Updated: 2026-11-05T23:35:00Z
+- Conversation ID: 2710972e-05b0-491e-8e81-953af37d2751
+- Updated: 2026-11-10T10:05:15Z
 
 ## Investigation State
 - **Explored paths**:
-  - `flutter_tts` pub.dev specification, AndroidManifest queries requirement, and iOS AVAudioSession configuration.
-  - Flutter 3 `HardwareKeyboard.instance.addHandler` and `LogicalKeyboardKey` constants.
-  - Abstraction & Fake pattern for self-contained `lib/main.dart` and `test/widget_test.dart`.
-  - Dark-mode layout with center large text and bottom auto-scrolling log.
+  - `pubspec.yaml`, `lib/main.dart`, `lib/training_screen.dart`, `lib/training_controller.dart`, `lib/theme/app_colors.dart`, `test/widget_test.dart`
+  - Punch-through spotlight overlay implementation using `Path.combine(PathOperation.difference)` in `CustomPainter`
+  - Breathing firefly glow animation using `AnimationController` + layered `boxShadow` in `Positioned` + `IgnorePointer`
+  - Unobtrusive skip button & screen touch fallback for presentation demo safety
+  - Virtual media key bar (5 keys) unified dispatch architecture
+  - Existing `FakeTtsService`, `FakeSoundEffectService`, `FakeAudioDuckingController`, `sendNativeKeyEvent` in `test/widget_test.dart`
+  - Mitigation of `AnimationController.repeat` pumpAndSettle timeout via `animateGlow: false` test flag
 - **Key findings**:
-  - `flutter_tts` version `^4.2.5`. Android 11+ requires `<queries>` in AndroidManifest.xml. iOS requires `setIosAudioCategory` for Bluetooth/silent mode.
-  - `FakeTtsService` embedded directly in `lib/main.dart` allows unit/widget tests to run without `MissingPluginException` and without external mocking libraries.
-  - `ButtonControlApp({this.ttsService})` defaults to `FlutterTtsService()`, enabling both standalone `flutter run` and mockable `flutter test`.
+  - `Path.combine(PathOperation.difference)` is mathematically clean and does not incur `saveLayer` GPU memory overhead.
+  - Existing fake classes in `lib/main.dart` are 100% reusable for testing `TutorialScreen`.
+  - DI constructor parameters in `TutorialScreen` allow zero-dependency testing without external mocking packages.
 - **Unexplored areas**:
-  - None remaining for this survey.
+  - None remaining. Investigation complete.
 
 ## Key Decisions Made
-- Architecture uses `TtsService` interface with `FlutterTtsService` and `FakeTtsService` in `lib/main.dart`.
-- `HardwareKeyboard.instance.addHandler` listens specifically for `KeyDownEvent` to prevent double-counting.
-- Full architectural blueprint and test suite drafted in `handoff.md`.
+- Architecture recommendations documented in `analysis.md` and `handoff.md`.
 
 ## Artifact Index
-- c:\Users\taqmi\02_development\original_program\button_controll_test\.agents\teamwork\ORIGINAL_REQUEST.md — Authoritative User Request
-- c:\Users\taqmi\02_development\original_program\button_controll_test\.agents\teamwork\survey_explorer_3\DISPATCH.md — Incoming Dispatch
-- c:\Users\taqmi\02_development\original_program\button_controll_test\.agents\teamwork\survey_explorer_3\BRIEFING.md — Persistent Working Memory
-- c:\Users\taqmi\02_development\original_program\button_controll_test\.agents\teamwork\survey_explorer_3\progress.md — Execution Progress & Liveness
-- c:\Users\taqmi\02_development\original_program\button_controll_test\.agents\teamwork\survey_explorer_3\handoff.md — 5-Component Survey Handoff Report
+- c:\Users\taqmi\02_development\original_program\noukin_app\.agents\teamwork\ORIGINAL_REQUEST.md — Authoritative User Request
+- c:\Users\taqmi\02_development\original_program\noukin_app\.agents\teamwork\survey_explorer_3\DISPATCH.md — Incoming Dispatch
+- c:\Users\taqmi\02_development\original_program\noukin_app\.agents\teamwork\survey_explorer_3\BRIEFING.md — Persistent Working Memory
+- c:\Users\taqmi\02_development\original_program\noukin_app\.agents\teamwork\survey_explorer_3\progress.md — Execution Progress & Liveness
+- c:\Users\taqmi\02_development\original_program\noukin_app\.agents\teamwork\survey_explorer_3\analysis.md — Detailed UI & Test Analysis Report
+- c:\Users\taqmi\02_development\original_program\noukin_app\.agents\teamwork\survey_explorer_3\handoff.md — 5-Component Survey Handoff Report

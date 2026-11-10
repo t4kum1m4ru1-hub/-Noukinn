@@ -1,159 +1,102 @@
-# Handoff Report — challenger_m1_1 (Key Event Challenger)
+# Handoff Report: Adversarial Key Event & State Transition Stress Test
 
-**Agent**: `challenger_m1_1`  
-**Milestone**: Milestone 1 (Key Event Verification & Stress Challenge)  
-**Date**: 2026-11-06T00:05:00Z  
-**Verdict**: **`APPROVE`**
+**Agent**: challenger_m1_1 (critic, specialist)  
+**State folder**: `c:\Users\taqmi\02_development\original_program\noukin_app\.agents\teamwork\challenger_m1_1\`  
+**Date**: 2026-11-10  
+**Status**: Hard Handoff (Completed with Verdict: **`REQUEST_CHANGES`**)
 
 ---
 
 ## 1. Observation
 
-1. **Static Analysis (`flutter analyze`)**:
-   - Command:
-     ```powershell
-     flutter analyze
+1. **Adversarial Stress Test Suite Authoring**:
+   - Authored and executed an empirical stress harness in `test/stress_tutorial_keys_test.dart` comprising 19 targeted adversarial test cases across all steps of `TutorialScreen`.
+2. **Empirical Failure Reproduction (Asynchronous Re-entrancy / Rapid Double-Press)**:
+   - When running `flutter test --no-test-assets test/stress_tutorial_keys_test.dart`, 4 test cases consistently failed with duplicate audio/TTS calls:
      ```
-   - Result:
-     ```
-     Analyzing button_controll_test...                               
-     No issues found! (ran in 8.2s)
-     ```
-   - Exit code: 0 (0 errors, 0 warnings, 0 lints).
+     Step 2 (Start Experience): キー85の連続連打（ダブルクリック等）で多重発話・重複ビープが発生しないこと（再入防止） [E]
+       Expected: <1>
+         Actual: <2>
+       Step 2 開始キーの連打でビープが重複再生されてはならない
 
-2. **Automated Test Execution Across Workspace (`flutter test --no-test-assets`)**:
-   - Executed full test suite containing 39 tests:
-     - 19 baseline tests in `test/widget_test.dart`
-     - 8 adversarial stress tests in `test/stress_test.dart`
-     - 12 UI/TTS adversarial tests in `test/ui_tts_challenger_test.dart`
-   - Command:
-     ```powershell
-     flutter test --no-test-assets
-     ```
-   - Result:
-     ```
-     00:04 +39: All tests passed!
-     ```
-   - Exit code: 0 (39 passed, 0 failed, 100% pass rate).
+     Step 3 Part 1 (Enter Mode): キー87の連続連打で多重発話・重複ビープが発生しないこと（再入防止） [E]
+       Expected: <1>
+         Actual: <2>
+       Step 3 突入キー連打でビープが重複再生されてはならない
 
-3. **Key Interception Implementation (`lib/main.dart`)**:
-   - Lines 340–343:
-     ```dart
-     HardwareKeyboard.instance.addHandler(_handleKeyEvent);
-     ```
-   - Line 347:
-     ```dart
-     HardwareKeyboard.instance.removeHandler(_handleKeyEvent);
-     ```
-   - Lines 354–365:
-     ```dart
-     bool _handleKeyEvent(KeyEvent event) {
-       if (event is! KeyDownEvent) {
-         return false;
-       }
+     Step 4 (Weight Adjustment): 決定キー(85)の連続連打で多重発話・重複ビープが発生しないこと（再入防止） [E]
+       Expected: <1>
+         Actual: <2>
+       Step 4 決定キー連打でビープが重複再生されてはならない
 
-       final action = ButtonAction.fromKeyEvent(event);
-       if (action != null) {
-         _processAction(action);
-         return true; // Mark as handled
-       }
-       return false; // Allow unhandled keys to propagate normally
-     }
+     Step 5 (Adjustment Completion): 確定キー(87)の連続連打で多重発話・重複ビープが発生しないこと（再入防止） [E]
+       Expected: <1>
+         Actual: <2>
+       Step 5 確定キー連打でビープが重複再生されてはならない
      ```
-   - Lines 207–209:
-     ```dart
-     static ButtonAction? fromKeyEvent(KeyEvent event) {
-       return fromLogicalKey(event.logicalKey) ?? fromPhysicalKey(event.physicalKey);
-     }
-     ```
-
-4. **Empirical Stress Test Scenarios in `test/stress_test.dart`**:
-   - **Scenario 1.1 (KeyRepeatEvent Stress)**: 100 consecutive `KeyRepeatEvent`s dispatched while holding `LogicalKeyboardKey.audioVolumeUp`.
-     - Result: `repeatHandled == false` for all 100 events; `fakeTts.spokenHistory.length == 1`; `logs.length == 1`. Zero duplicate speech or logs.
-   - **Scenario 1.2 (KeyUpEvent Stress)**: Standalone `KeyUpEvent`s dispatched for all 5 target keys (`audioVolumeUp`, `audioVolumeDown`, `mediaPlayPause`, `mediaPlay`, `mediaPause`, `select`, `mediaTrackNext`, `mediaTrackPrevious`).
-     - Result: `upHandled == false` for all; zero TTS utterances, zero logs added.
-   - **Scenario 1.3 (Noisy Input Stream)**: Interleaved `KeyUpEvent`, `KeyRepeatEvent`, and unhandled keys around valid `KeyDownEvent`s.
-     - Result: Exactly 2 legitimate `KeyDownEvent`s processed into TTS and logs in chronological order.
-   - **Scenario 2.1 (Unhandled Keyboard Spam)**: 17 non-navigational keys (`KeyA`, `KeyZ`, `Digit0`, `Digit9`, `Enter`, `Space`, `Escape`, `Tab`, `Backspace`, `Delete`, `ShiftLeft`, `ControlLeft`, `AltLeft`, `MetaLeft`, `F1`, `F12`, `AudioVolumeMute`) and 4 navigational arrow keys (`ArrowUp`, `ArrowDown`, `ArrowLeft`, `ArrowRight`).
-     - Result: All non-navigational keys returned `handled == false`; `ButtonAction.fromLogicalKey` returned `null` for all 21 keys; UI remained in idle prompt (`ボタンを押してください`); zero TTS calls.
-   - **Scenario 3.1 (High-Frequency Burst)**: 100 rapid alternating key events pumped with 5ms delays to stress overlapping `ScrollController.animateTo` calls.
-     - Result: Exactly 100 events recorded in `logs` and spoken via `fakeTts`; no animation crash or exception thrown.
-   - **Scenario 3.2 (Concurrent Clear Action)**: Clear logs tapped while key stream is active.
-     - Result: Log counter cleanly updated to 9 without `IndexOutOfBoundsException` or `RangeError`.
-   - **Scenario 4.1 (Physical Key Fallback)**: `KeyDownEvent` dispatched with `logicalKey: LogicalKeyboardKey.unidentified` and `physicalKey: PhysicalKeyboardKey.audioVolumeUp`.
-     - Result: `HardwareKeyboard.instance.handleKeyEvent` returned `true`; accurately spoken ("音量アップを受信しました") and rendered ("KEYCODE_VOLUME_UP"). Direct tests confirmed fallback for `mediaSelect`, `mediaTrackNext`, `mediaTrackPrevious`.
-   - **Scenario 5.1 (Lifecycle Mount/Unmount Stress)**: 10 rapid mount and unmount iterations.
-     - Result: `fakeTts.stopCallCount >= 1` per unmount; post-unmount key events returned `false` without triggering ghost callbacks.
+3. **Step 4 Debounce & Boundary Clamping Successes**:
+   - **10 rapid clicks**: Volume Up pressed 10 times in 300ms updated UI from 60.0kg to 85.0kg immediately. Exactly 1 debounced speech (`'85キロ'`) fired after 750ms.
+   - **Debounce Interruption**: Pressing Key 85 (決定) while the 0.7s debounce timer was pending immediately cancelled the timer. Spoke `'調整、重量'`, and the pending `'65キロ'` speech was completely suppressed.
+   - **Lower Bound Clamping**: Pressing Volume Down 30 times (reducing 75kg) clamped strictly at `0.0kg` (`'0 kg'` UI, `'0キロ'` TTS), with no negative values.
+4. **Invalid Key Filtering & Guidance Prompting Successes**:
+   - Step 1: Unhandled keys (24, 25, 87, 88, 999) caused no side effects.
+   - Step 2: Spamming volume and next/prev keys caused no beeps or speech.
+   - Step 5: Pressing any invalid key (85, 79, 24, 25, 88) correctly displayed the notice prompt `'［次の曲へ進む］ボタンを押して調整を完了してください'` without advancing state. Pressing Key 87 cleared the prompt and advanced to Step 6.
+   - Keyboard typing spam (A-Z, digits, Enter, Tab, Escape) was ignored cleanly (`KeyEventResult.ignored`).
 
 ---
 
 ## 2. Logic Chain
 
-1. **Repeat Event Suppression**:
-   - Observation 3 shows `_handleKeyEvent` gates all processing behind `if (event is! KeyDownEvent) return false;`.
-   - In Flutter, holding down a physical key generates `KeyRepeatEvent`. Because `KeyRepeatEvent is! KeyDownEvent`, it immediately returns `false`.
-   - Observation 4 (Scenario 1.1) empirically validates that 100 repeat events produce zero extra speech calls and zero log entries.
-
-2. **Key Up Event Filtering**:
-   - Releasing a physical button generates `KeyUpEvent`.
-   - Under `if (event is! KeyDownEvent) return false;`, `KeyUpEvent` returns `false`.
-   - Observation 4 (Scenario 1.2) empirically validates that releasing any of the 5 target keys does not trigger false speech utterances or logs.
-
-3. **Unhandled Key Non-Interference**:
-   - Observation 3 shows that keys not recognized by `ButtonAction.fromKeyEvent` return `false` from `_handleKeyEvent`, allowing standard Flutter framework propagation.
-   - Observation 4 (Scenario 2.1) demonstrates that typing letters, numbers, functional keys, and arrow keys does not match target actions, leaving the verification screen in its pristine state without spurious speech synthesis.
-
-4. **Robustness Under Velocity & Fallback**:
-   - Observation 4 (Scenarios 3.1, 3.2, 4.1, 5.1) confirms the application handles rapid key bursts, overlapping scroll animations, physical-only key OEM events (e.g., Bluetooth earphone remotes emitting `PhysicalKeyboardKey.mediaSelect` with unidentified logical key), and widget tree unmounting without leaking handlers or crashing.
-
-5. **Acceptance Criteria Verification**:
-   - All 5 key actions (Volume Up, Volume Down, Play/Pause, Next Track, Previous Track) map to the exact canonical Japanese phrases ("音量アップを受信しました", "音量ダウンを受信しました", "再生・停止ボタンが押されました", "次の曲ボタンを受信しました", "前の曲ボタンを受信しました") and key names (`KEYCODE_VOLUME_UP`, etc.).
-   - All requirements R1, R2, R3, R4, R5 from `ORIGINAL_REQUEST.md` are genuinely satisfied.
+1. **Step Transition Mechanism in `lib/tutorial_screen.dart`**:
+   - In `_proceedFromStep2()`, `_handleStep3Action()`, `_handleStep4Action()`, and `_handleStep5Action()`, the method performs `await _playBeep()` followed by `await _speak(...)` BEFORE updating the state variable `_currentStep` via `setState(...)`.
+   - Lines 328–338 (`_proceedFromStep2`):
+     ```dart
+     Future<void> _proceedFromStep2() async {
+       await _playBeep();
+       await _speak('開始、ベンチプレス、60キロ、10回、3セット');
+       if (!mounted) return;
+       setState(() {
+         _currentStep = TutorialStep.step3Select;
+         _step3Phase = Step3Phase.enterMode;
+       });
+     }
+     ```
+2. **Asynchronous Re-entrancy Vulnerability**:
+   - While `_speak()` and `_playBeep()` are awaiting, Dart's event loop continues processing incoming native MethodChannel messages dispatched by `KeyEventChannelDispatcher`.
+   - Because `_currentStep` has not yet transitioned to the next step and there is no boolean in-flight lock (such as `_isStepTransitioning`), a second key event (e.g. user double-tapping or contact jitter) invokes the same transition handler again.
+   - This results in two concurrent execution chains, producing 2 sound effects and 2 overlapping TTS speech commands, breaking audio hygiene and creating race conditions if the user skips steps during speech.
+3. **Mitigation Path**:
+   - Adding a re-entrancy lock `bool _isStepTransitioning = false;` or advancing the state synchronously before awaiting audio playback guarantees that subsequent key presses during speech are either ignored or handled in the new step context.
 
 ---
 
 ## 3. Caveats
 
-1. **Host Environment Path Multi-byte Handling**:
-   - Due to the Flutter SDK path containing Japanese characters (`C:\Users\taqmi\06_一時保管\flutter`), running `flutter test` without `--no-test-assets` may encounter Windows impellerc path decoding issues. All test invocations should continue using `flutter test --no-test-assets`.
-2. **Physical Volume Rocker on Physical iOS Devices**:
-   - As documented by worker_m1, Apple's iOS AVFoundation restricts raw volume rocker hardware events from reaching user apps via `UIKey`. However, Bluetooth earphone remote buttons and headphone inline remotes emit standard HID media keys. The Flutter event layer and headless widget tests verify full cross-platform code correctness.
-3. **No Unhandled Bugs**:
-   - No bugs, leaks, or regressions were detected during adversarial testing.
+1. **Static Analysis**: `flutter analyze` passes with 0 issues. The vulnerability is an asynchronous runtime concurrency flaw, undetectable by static analysis alone.
+2. **Unit Test Pass Rates in Non-Adversarial Scenarios**: All original 25 tests in `widget_test.dart` and `tutorial_screen_test.dart` pass because they sequentially await `pumpAndSettle()` between each key event. The issue only manifests under realistic physical input conditions (rapid successive key presses within the audio playback window).
 
 ---
 
 ## 4. Conclusion
 
-Verdict: **`APPROVE`**
-
-The key event interception implementation in `lib/main.dart` is empirically robust, correctly handles all 5 specified physical and media button actions, cleanly filters out repeated events and key up events, isolates unhandled keyboard input, supports physical key fallback for OEM earphone remotes, and passes 100% of all 39 automated tests across the workspace with zero lints.
+- **Verdict**: **`REQUEST_CHANGES`**
+- **Required Fix**:
+  In `lib/tutorial_screen.dart`, guard all step transition handlers (`_proceedFromStep2`, Step 3 `enterMode` transition, Step 4 `mediaPlayPause` transition, and Step 5 `mediaNext` transition) with an asynchronous re-entrancy lock (e.g., `_isStepTransitioning`) or update step states synchronously prior to audio playback to prevent duplicate beeps and overlapping TTS utterances upon rapid double-pressing.
 
 ---
 
 ## 5. Verification Method
 
-To independently reproduce the empirical findings:
+To independently reproduce this finding:
+```powershell
+flutter test --no-test-assets test/stress_tutorial_keys_test.dart
+```
 
-1. **Run Static Analysis**:
-   ```powershell
-   flutter analyze
-   ```
-   *Expected*: `No issues found!` (Exit code 0).
-
-2. **Run All Automated Tests**:
-   ```powershell
-   flutter test --no-test-assets
-   ```
-   *Expected*: `All tests passed!` (39 tests passed, 0 failed, Exit code 0).
-
-3. **Run Key Event Stress Test Suite Specifically**:
-   ```powershell
-   flutter test test/stress_test.dart --no-test-assets --reporter expanded
-   ```
-   *Expected*: All 8 stress scenarios pass with checkmarks.
-
-4. **Inspect Files**:
-   - `lib/main.dart`: Key filtering logic (`_handleKeyEvent`, `ButtonAction.fromKeyEvent`).
-   - `test/stress_test.dart`: Empirical stress test suite.
-   - `test/widget_test.dart`: Core widget tests.
+- **Expected Failure**:
+  - `Step 2 (Start Experience): キー85の連続連打（ダブルクリック等）で多重発話・重複ビープが発生しないこと（再入防止）` -> fails with `Expected: <1>, Actual: <2>`.
+  - `Step 3 Part 1 (Enter Mode): キー87の連続連打で多重発話・重複ビープが発生しないこと（再入防止）` -> fails with `Expected: <1>, Actual: <2>`.
+  - `Step 4 (Weight Adjustment): 決定キー(85)の連続連打で多重発話・重複ビープが発生しないこと（再入防止）` -> fails with `Expected: <1>, Actual: <2>`.
+  - `Step 5 (Adjustment Completion): 確定キー(87)の連続連打で多重発話・重複ビープが発生しないこと（再入防止）` -> fails with `Expected: <1>, Actual: <2>`.
+- **Invalidation Condition**:
+  - If a re-entrancy guard is added to `lib/tutorial_screen.dart` and all 19 tests in `test/stress_tutorial_keys_test.dart` pass (19/19 passed, exit code 0).

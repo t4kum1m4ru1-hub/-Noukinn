@@ -1,40 +1,84 @@
-# Handoff Report — Orchestrator
+# Soft Handoff — Orchestrator to Successor (gen1)
+
+**Predecessor**: `orchestrator` (top-level orchestrator)  
+**Date**: 2026-11-10T11:17:00Z  
+**Parent Conversation ID**: `d39f1c8c-71b9-4688-9935-16ca6ab5155e`  
+**Workspace**: `c:\Users\taqmi\02_development\original_program\noukin_app`  
+**Successor State Folder**: `c:\Users\taqmi\02_development\original_program\noukin_app\.agents\teamwork\orchestrator_gen1\`  
+
+---
 
 ## 1. Observation
-1. **User Objective**: Implement a minimal cross-platform Flutter verification application in `lib/main.dart` capturing physical buttons (Volume Up/Down) and earphone media keys (Play/Pause, Next, Previous) across Android and iOS, immediately reading out detected actions via `flutter_tts`, accompanied by automated tests.
-2. **Execution & Deliverables**:
-   - `lib/main.dart`: Self-contained Flutter application implementing `TtsService` abstraction (`FlutterTtsService` and `FakeTtsService`), `ButtonAction` mapping, global `HardwareKeyboard.instance.addHandler` filtering strictly for `KeyDownEvent`, and dark-mode verification UI (center large key name display, bottom scrollable real-time timestamped log list).
-   - `pubspec.yaml`: Declares `flutter_tts: ^4.2.5` and `flutter_lints: ^6.0.0` with SDK constraint `^3.13.7`.
-   - `android/app/src/main/AndroidManifest.xml`: Configures `<queries><intent><action android:name="android.intent.action.TTS_SERVICE" /></intent></queries>` for Android 11+ TTS package visibility.
-   - `test/widget_test.dart`: 19 comprehensive tests across unit models, Tier 1 feature coverage, Tier 2 boundary cases (discrete play/pause, unhandled key passthrough, non-KeyDown filtering, log clear, dispose cleanup), and Tier 3 sequential/concurrency tests.
-   - Additional stress test suites: `test/stress_test.dart` (8 tests) and `test/ui_tts_challenger_test.dart` (12 tests) created during adversarial verification.
-3. **Verification Summary**:
-   - `flutter analyze`: 0 issues found across all source and test files.
-   - `flutter test --no-test-assets`: 39/39 tests passed with 100% success rate (exit code 0).
-   - Forensic Integrity Audit (`auditor_m1_1`): **CLEAN** (zero cheats, zero dummy implementations, genuine event listener and TTS logic).
-   - Reviewer verdicts: 2/2 **APPROVE** (`reviewer_m1_1`, `reviewer_m1_2`).
-   - Challenger verdicts: 2/2 **APPROVE** (`challenger_m1_1`, `challenger_m1_2`).
+1. **Requirements & Scope**:
+   - `ORIGINAL_REQUEST.md`: Implement `TutorialScreen` in `lib/tutorial_screen.dart` with dark spotlight overlay, firefly glow, 6 steps of training control via earphone keys (85/79, 87, 88, 24, 25), bottom virtual media key bar, presentation skip buttons, entry button in `lib/main.dart` below `start_training_button`, audio ducking, stop before speak, and automated widget tests.
+   - `lib/training_screen.dart` has a strict NEVER MODIFY rule (R1).
+2. **Current State of Codebase**:
+   - `lib/tutorial_screen.dart`: Fully implemented, including:
+     - 6-step state machine (`TutorialStep.step1Intro` to `step6Completed`) and `Step3Phase`.
+     - Double key interception (`KeyEventChannelDispatcher` + `Focus`).
+     - Spotlights via `SpotlightOverlayPainter` (70% black overlay with `PathOperation.difference` punch-through).
+     - Firefly breathing glow animation with `animateGlow` flag for test safety.
+     - 0.7s weight adjustment debounce timer with cancellation on decide key.
+     - Bottom 5-button virtual media key bar.
+     - Re-entrancy guard `_isStepTransitioning` and generation token `_transitionGeneration`.
+     - State reversion protection `if (!mounted || _currentStep != expectedStep || gen != _transitionGeneration) return;`.
+     - Audio ducking leak prevention (`releaseDucking` in `_onSkipStepPressed` and navigation).
+     - Post-dispose debounce speech prevention (`PopScope`, AppBar leading cleanup, `!mounted` guards).
+   - `lib/main.dart`: `start_tutorial_button` cleanly added below `start_training_button`.
+   - `lib/training_screen.dart`: UNTOUCHED.
+   - `test/tutorial_screen_test.dart`: 11 tests passing.
+   - `test/stress_tutorial_keys_test.dart`: 19 adversarial key stress tests passing.
+   - `test/stress_tutorial_audio_test.dart`: 9 adversarial audio concurrency stress tests passing.
+   - `test/widget_test.dart`: 14 core tests passing.
+   - Total tests: 53 tests passing across workspace (`flutter test --no-test-assets`), `flutter analyze` 0 issues.
+3. **Milestone State**:
+   - Milestone M1 (`TutorialScreen Implementation & Automated Verification`):
+     - Phase 0 Survey: DONE (3 Explorers).
+     - Iteration 1: Worker implemented core files; Reviewers APPROVED; Auditor CLEAN; Challengers found 4 edge cases (REQUEST_CHANGES). Gate: FAIL.
+     - Iteration 2: 3 Explorers designed fixes; Remediation Worker `worker_m1_iter2` implemented all fixes. Tests pass 53/53.
+     - Iteration 2 Gate: Ready for gate verification (Reviewers, Challengers, Auditor).
+
+---
 
 ## 2. Logic Chain
-1. **TTS Decoupling for Testability**:
-   `flutter test` runs in a headless Dart VM without native Android `TextToSpeech` or iOS `AVSpeechSynthesizer` platform channel implementations. Defining an abstract `TtsService` inside `lib/main.dart` with `FlutterTtsService` (production) and `FakeTtsService` (in-memory test fake) fulfills R4 (standalone, self-contained `lib/main.dart` with zero third-party mock dependencies) while enabling deterministic automated assertions on spoken phrases in `test/widget_test.dart`.
-2. **Key Event Handling & Deduplication**:
-   Flutter hardware key events emit `KeyDownEvent`, `KeyRepeatEvent`, and `KeyUpEvent`. Using `HardwareKeyboard.instance.addHandler` and filtering with `if (event is! KeyDownEvent) return false;` guarantees exactly one announcement per press, preventing audio overlap or duplicate log entries.
-3. **Responsive Dark-Mode Interface**:
-   The verification screen features a dark theme (`0xFF121212` background, `0xFF1E1E1E` card surfaces, `tealAccent`), large center text (`28sp`, bold) indicating the latest key name, Japanese phrase, and timestamp, and an auto-scrolling bottom `ListView.builder` logging all events in chronological order with clear button functionality.
+1. The predecessor reached the maximum spawn count limit (16 spawns).
+2. All 16 subagents have completed their tasks cleanly.
+3. Per the Succession Protocol, succession triggers immediately.
+4. The implementation is in a completely compiling, zero-regression state with 53 passing automated tests.
+5. The successor's primary job is to run the Iteration 2 Gate check (Reviewers, Challengers, Auditor), collect verdicts into `GATE_STATUS.md`, evaluate pass criteria, and deliver the final report to parent.
 
-## 3. Caveats
-1. **Real Device Volume Keys**: On physical Android devices, the volume rocker is handled by the OS audio manager to adjust media volume unless intercepted at the native activity level. On iOS, physical side buttons are owned by CoreAudio and not exposed as keyboard events to standard apps. Media keys on earphones (wired/Bluetooth) send standard media keyboard events and function as expected. Automated widget tests verify Flutter's key event handling cross-platform.
-2. **Host Impellerc Non-ASCII Path**: When the Flutter SDK is located in a directory containing non-ASCII characters, `flutter test` requires the `--no-test-assets` flag (or standard headless execution) to bypass asset shader compilation quirks.
+---
 
-## 4. Conclusion
-All requirements (R1, R2, R3, R4, R5) and functional acceptance criteria have been completely met. The application is production-ready, fully self-contained, documented, and backed by a 39-test automated test suite with 100% pass rate and clean forensic integrity audit.
+## 3. Caveats & Key Constraints
+- NEVER modify or write source code directly. All verification and audits must be dispatched.
+- Mandatory: Include path to `ORIGINAL_REQUEST.md` in every subagent dispatch: `c:\Users\taqmi\02_development\original_program\noukin_app\.agents\teamwork\ORIGINAL_REQUEST.md`.
+- `lib/training_screen.dart` MUST NEVER be touched.
+- Forensic Auditor CLEAN verdict is a mandatory binary requirement.
 
-## 5. Verification Method
-To verify the application and test suite:
-```powershell
-flutter pub get
-flutter analyze
-flutter test --no-test-assets
-```
-Expected output: 0 analysis issues and all 39 tests passing with exit code 0.
+---
+
+## 4. Remaining Work (Concrete Next Steps for Successor)
+1. Initialize successor state in `c:\Users\taqmi\02_development\original_program\noukin_app\.agents\teamwork\orchestrator_gen1\`.
+2. Dispatch Gate agents for Milestone 1 Iteration 2:
+   - 2 Reviewers (`teamwork_reviewer`): Code Quality & UI Presentation review.
+   - 2 Challengers (`teamwork_challenger`): Run `test/stress_tutorial_keys_test.dart` and `test/stress_tutorial_audio_test.dart`.
+   - 1 Forensic Auditor (`teamwork_auditor`): Forensic integrity verification.
+3. Evaluate Iteration 2 Gate in `GATE_STATUS.md`:
+   - All tests pass (53/53).
+   - Reviewers APPROVE.
+   - Challengers APPROVE.
+   - Auditor CLEAN.
+4. Update `PROJECT.md` Milestone M1 Status to `DONE`.
+5. Prepare human report and report completion to parent (`d39f1c8c-71b9-4688-9935-16ca6ab5155e`) using `send_message`.
+
+---
+
+## 5. Key Artifacts
+- `c:\Users\taqmi\02_development\original_program\noukin_app\.agents\teamwork\ORIGINAL_REQUEST.md`
+- `c:\Users\taqmi\02_development\original_program\noukin_app\.agents\teamwork\PROJECT.md`
+- `c:\Users\taqmi\02_development\original_program\noukin_app\.agents\teamwork\orchestrator\GATE_STATUS.md`
+- `c:\Users\taqmi\02_development\original_program\noukin_app\lib\tutorial_screen.dart`
+- `c:\Users\taqmi\02_development\original_program\noukin_app\lib\main.dart`
+- `c:\Users\taqmi\02_development\original_program\noukin_app\test\tutorial_screen_test.dart`
+- `c:\Users\taqmi\02_development\original_program\noukin_app\test\stress_tutorial_keys_test.dart`
+- `c:\Users\taqmi\02_development\original_program\noukin_app\test\stress_tutorial_audio_test.dart`

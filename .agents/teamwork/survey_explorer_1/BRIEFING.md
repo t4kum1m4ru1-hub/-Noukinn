@@ -1,45 +1,49 @@
-# BRIEFING — 2026-11-06T08:38:00+09:00
+# BRIEFING — 2026-11-10T10:08:30Z
 
 ## Mission
-Survey workspace environment, existing files, Flutter/Dart SDK constraints, toolchain status, and environmental/configuration requirements for flutter_tts and button/media key control.
+Investigate noukin_app codebase architecture for ButtonControlScreen, TrainingScreen navigation, and Audio Services (TTS, SoundEffectService, AudioDuckingController) to guide TutorialScreen implementation.
 
 ## 🔒 My Identity
 - Archetype: explorer
-- Roles: Workspace Environment Explorer, Synthesis
-- Working directory: c:\Users\taqmi\02_development\original_program\button_controll_test\.agents\teamwork\survey_explorer_1
-- Original parent: 4c8ae3a7-ebb5-4c14-9019-42e6ab31053f
-- Milestone: M1 - Workspace & Environment Exploration
+- Roles: survey, analysis, synthesis
+- Working directory: c:\Users\taqmi\02_development\original_program\noukin_app
+- State folder: c:\Users\taqmi\02_development\original_program\noukin_app\.agents\teamwork\survey_explorer_1\
+- Original parent: 2710972e-05b0-491e-8e81-953af37d2751
+- Milestone: codebase architecture survey
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement
-- Only write files within own directory (.agents/teamwork/survey_explorer_1/)
-- Never modify source code or workspace files outside survey_explorer_1
+- Read-only investigation — do NOT implement or modify source code
+- Strictly preserve Golden Rules from GEMINI.md (no external context words, clear explanation for non-engineers, no silent assumptions)
+- lib/training_screen.dart is strictly READ-ONLY
 
 ## Current Parent
-- Conversation ID: 4c8ae3a7-ebb5-4c14-9019-42e6ab31053f
-- Updated: not yet
+- Conversation ID: 2710972e-05b0-491e-8e81-953af37d2751
+- Updated: 2026-11-10T10:05:12Z
 
 ## Investigation State
 - **Explored paths**:
-  - `button_controll_test` root directory
-  - `.agents/teamwork/ORIGINAL_REQUEST.md`
-  - Peer projects: `noukin_app/noukin_app` (`pubspec.yaml`, `pubspec.lock`, `build.gradle.kts`, `AndroidManifest.xml`, `Info.plist`)
-  - Toolchain status: `flutter --version`, `flutter doctor`, `flutter pub get`, `flutter test`, `flutter devices`
+  - `lib/main.dart`: ButtonControlApp, ButtonControlScreen, AudioDuckingController, SoundEffectService, TtsService, KeyEventChannelDispatcher, ButtonAction
+  - `lib/training_screen.dart`: TrainingScreen constructor, lifecycle, focus/keyboard handling, navigation to ReviewScreen, visual layout
+  - `lib/training_controller.dart`: WorkoutExerciseState, TrainingMode, AdjustmentTarget, debounce logic, audio calls
+  - `lib/theme/app_colors.dart`: Color definitions
+  - `lib/review_screen.dart`: ReviewScreen implementation
+  - `test/widget_test.dart`: Test helpers (sendNativeKeyEvent, emitTtsPlatformCallback), fake audio services, step simulation
 - **Key findings**:
-  1. Workspace is currently uninitialized (only `.agents` exists; no `pubspec.yaml`, `lib/`, `test/`).
-  2. Flutter SDK version is 3.47.9 (Dart 3.13.7) on Windows 11.
-  3. `flutter_tts: ^4.2.5` is active and cached in local environment (verified from `noukin_app` lockfile).
-  4. Android requires `<queries><intent><action android:name="android.intent.action.TTS_SERVICE" /></intent></queries>` in `AndroidManifest.xml` for TTS service resolution on Android 11+.
-  5. In `flutter test`, native method channels are absent; an injectable TTS interface or mock channel handler is mandatory to avoid `MissingPluginException`.
-- **Unexplored areas**:
-  - Runtime behavior on physical iOS/Android hardware devices (devices are not currently attached, though emulators/simulators or desktop/web devices are detected).
+  - `ButtonControlScreen` is a Column layout with the training start button as first child. The new tutorial button should be added as a direct sibling immediately below it.
+  - `TrainingScreen` has optional parameters (`ttsService`, `soundEffectService`, `controller`). It creates its own `TrainingController` if null.
+  - `FlutterTtsService` already handles audio ducking and `flutterTts.stop()` internally on each `speak()`. Explicit `ttsService.stop()` is supported and recommended for step transitions.
+  - `SoundEffectService` provides `playBeep()` which invokes ducking and native/system click beep.
+  - Key events are dispatched via `KeyEventChannelDispatcher.instance` and mapped to `ButtonAction`.
+- **Unexplored areas**: None for this survey scope.
 
 ## Key Decisions Made
-- Confirmed Flutter 3.47.9 / Dart 3.13.7 compatibility matrix for project initialization.
-- Documented essential Android/iOS and Flutter testing configuration prerequisites.
+- Analyzed and documented code architecture with exact file references and line numbers.
+- Prepared comprehensive analysis.md and handoff.md following the 5-component protocol.
 
 ## Artifact Index
-- DISPATCH.md — incoming dispatch message
-- progress.md — liveness heartbeat and progress tracking
-- BRIEFING.md — situational awareness working memory
-- handoff.md — comprehensive survey handoff report
+- .agents/teamwork/ORIGINAL_REQUEST.md — Original task specifications
+- .agents/teamwork/survey_explorer_1/DISPATCH.md — Received dispatch instructions
+- .agents/teamwork/survey_explorer_1/BRIEFING.md — Persistent memory
+- .agents/teamwork/survey_explorer_1/progress.md — Liveness heartbeat
+- .agents/teamwork/survey_explorer_1/analysis.md — Detailed codebase survey report
+- .agents/teamwork/survey_explorer_1/handoff.md — 5-component handoff report

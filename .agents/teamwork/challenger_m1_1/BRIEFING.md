@@ -1,7 +1,7 @@
-# BRIEFING — 2026-11-06T00:04:00Z
+# BRIEFING — 2026-11-10T19:54:00Z
 
 ## Mission
-Empirically stress-test and verify key event capture (volume/media keys, repeats, key up, unhandled keys) in Flutter app button_controll_test M1 implementation.
+Adversarially challenge and stress-test TutorialScreen key events and state transitions in `lib/tutorial_screen.dart`.
 
 ## 🔒 My Identity
 - Archetype: challenger
@@ -10,41 +10,50 @@ Empirically stress-test and verify key event capture (volume/media keys, repeats
 - Original parent: 4c8ae3a7-ebb5-4c14-9019-42e6ab31053f
 - Milestone: M1
 - Instance: 1 of 1
+- Current parent: 2710972e-05b0-491e-8e81-953af37d2751
+- Working directory (active): c:\Users\taqmi\02_development\original_program\noukin_app
+- State folder: c:\Users\taqmi\02_development\original_program\noukin_app\.agents\teamwork\challenger_m1_1\
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
 - Empirical verification mandatory — must write/execute tests directly
+- Tests must be placed in project test/ directory, not .agents/teamwork/
 
 ## Current Parent
-- Conversation ID: 4c8ae3a7-ebb5-4c14-9019-42e6ab31053f
-- Updated: 2026-11-06T00:04:00Z
+- Conversation ID: 2710972e-05b0-491e-8e81-953af37d2751
+- Updated: 2026-11-10T19:54:00Z
 
 ## Review Scope
-- **Files to review**: lib/main.dart, test/widget_test.dart
-- **Interface contracts**: .agents/teamwork/ORIGINAL_REQUEST.md, .agents/teamwork/PROJECT.md, .agents/teamwork/worker_m1/handoff.md
-- **Review criteria**: Volume Up/Down, Play/Pause, Next/Prev track event capture; repeat handling; key up filtering; unhandled key filtering; TTS invocation; log integrity.
+- **Files to review**: `lib/tutorial_screen.dart`, `lib/main.dart`
+- **Interface contracts**: `ORIGINAL_REQUEST.md`, `PROJECT.md`, `worker_m1/handoff.md`
+- **Review criteria**: Key event capture across steps 1-6, debounced weight adjustments, pending timer cancellations, lower bound clamping at 0.0kg, invalid key handling & warning prompts, asynchronous re-entrancy.
 
 ## Attack Surface
 - **Hypotheses tested**:
-  1. KeyRepeatEvent triggering duplicate speech or duplicate logs -> REJECTED (Strict `event is! KeyDownEvent` filter prevents duplicates).
-  2. Standalone KeyUpEvent triggering spurious TTS -> REJECTED (KeyUp returns false).
-  3. Unhandled keyboard typing (A-Z, 0-9, Enter, Space) causing false triggers -> REJECTED (All return null/false).
-  4. Rapid consecutive key burst causing ScrollController or ListView crash -> REJECTED (100 rapid events handled cleanly).
-  5. Unidentified logicalKey falling back to physicalKey -> CONFIRMED (Properly maps via `fromPhysicalKey`).
-  6. Memory leaks or phantom event listeners after disposal -> REJECTED (Handler cleanly removed in `dispose()`).
-- **Vulnerabilities found**: None in `lib/main.dart`.
-- **Untested angles**: Physical iOS volume rocker limitation is documented in caveats.
+  1. Unexpected keys during Step 1, 2, 3, 5, 6 breaking state machine -> REJECTED (Correctly ignored or warning prompts displayed).
+  2. 10 rapid succession clicks in Step 4 firing multiple TTS calls -> REJECTED (Debounce timer holds; fires exactly 1 speech).
+  3. Key 85 (決定) during Step 4 debounce failing to cancel pending speech -> REJECTED (Timer cleanly cancelled, 0 lingering speech).
+  4. Lower bound below 0.0kg -> REJECTED (Strictly clamped at 0.0kg, displaying '0 kg' and speaking '0キロ').
+  5. Rapid double-press / key stutter during step transitions causing duplicate audio & speeches -> CONFIRMED VULNERABILITY!
+     - Step 2 Key 85 double-press fires 2 beeps and 2 start TTS speeches.
+     - Step 3 Part 1 Key 87 double-press fires 2 beeps and 2 mode TTS speeches.
+     - Step 4 Key 85 double-press fires 2 beeps and 2 "調整、重量" TTS speeches.
+     - Step 5 Key 87 double-press fires 2 beeps and 2 "確定、開始..." TTS speeches.
+- **Vulnerabilities found**:
+  - Missing asynchronous transition lock in `_TutorialScreenState`. State update occurs after `await _playBeep()` and `await _speak()`, allowing incoming key events to re-enter transition handlers concurrently.
+- **Untested angles**: Physical Bluetooth earphone hardware latency.
 
 ## Loaded Skills
 - None
 
 ## Key Decisions Made
-- Authored and executed empirical stress test suite `test/stress_test.dart` (8 challenge tests).
-- Verified `flutter analyze` (0 issues) and `flutter test --no-test-assets` (39/39 passing).
-- Issued verdict: APPROVE.
+- Authored and executed empirical stress test suite `test/stress_tutorial_keys_test.dart` (19 challenge tests).
+- Confirmed critical re-entrancy failure in Steps 2, 3, 4, 5.
+- Issued verdict: **REQUEST_CHANGES**.
 
 ## Artifact Index
 - DISPATCH.md — dispatch record
 - BRIEFING.md — working memory
 - progress.md — liveness tracker
-- handoff.md — hard handoff report with verdict
+- analysis.md — detailed stress analysis
+- handoff.md — hard handoff report with verdict REQUEST_CHANGES

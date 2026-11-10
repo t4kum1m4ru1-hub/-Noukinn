@@ -1,148 +1,97 @@
-# Forensic Audit Report — auditor_m1_1
+# Forensic Audit Report: TutorialScreen Implementation
 
-**Agent**: `auditor_m1_1` (Forensic Integrity Auditor)  
-**Milestone**: Milestone 1 (M1) Core Flutter Remote Controller & TTS Verification  
-**Work Product**: `c:\Users\taqmi\02_development\original_program\button_controll_test` (`lib/main.dart`, `test/widget_test.dart`, `pubspec.yaml`, `android/app/src/main/AndroidManifest.xml`)  
+**Work Product**: `lib/tutorial_screen.dart`, `lib/main.dart`, `test/tutorial_screen_test.dart`  
 **Profile**: General Project (Flutter Application)  
-**Integrity Mode**: Development (as specified in `ORIGINAL_REQUEST.md`, line 8)  
+**Integrity Mode**: Development (from `ORIGINAL_REQUEST.md`)  
 **Verdict**: **CLEAN**
 
 ---
 
 ## 1. Observation
 
-### 1.1 Pre-Populated Artifact Detection (Phase 1 Check 3)
-- Command executed:
-  ```powershell
-  Get-ChildItem -Path . -Recurse -Include *.log,*result*,*output* -File | Select-Object FullName
-  ```
-- Output: Empty (no pre-existing logs, result caches, or fabricated attestation files found in workspace).
-
-### 1.2 Static Analysis Verification (Phase 2 Check 4)
-- Command executed:
-  ```powershell
-  flutter analyze
-  ```
-- Raw tool output:
-  ```
-  Analyzing button_controll_test...
-  No issues found! (ran in 7.8s)
-  ```
-- Exit code: 0.
-
-### 1.3 Independent Test Execution (Phase 2 Check 4 & 5)
-- Command executed:
-  ```powershell
-  flutter test --no-test-assets --reporter expanded
-  ```
-- Raw tool output:
-  ```
-  00:00 +0: loading C:/Users/taqmi/02_development/original_program/button_controll_test/test/widget_test.dart
-  00:00 +0: Unit Tests: Domain Models & Helpers ButtonAction.fromLogicalKey maps all target logical keys correctly
-  00:00 +1: Unit Tests: Domain Models & Helpers KeyEventLog formattedTime produces zero-padded HH:mm:ss.SSS
-  00:00 +2: Unit Tests: Domain Models & Helpers FakeTtsService records history and clears correctly
-  00:00 +3: Tier 1: Feature Coverage (Core Key Actions) 1.0: Initial State displays waiting prompt, empty log, and disabled clear button
-  00:00 +4: Tier 1: Feature Coverage (Core Key Actions) 1.1: Volume Up key event updates center UI, adds log entry, and calls TTS
-  00:01 +5: Tier 1: Feature Coverage (Core Key Actions) 1.2: Volume Down key event updates center UI, adds log entry, and calls TTS
-  00:01 +6: Tier 1: Feature Coverage (Core Key Actions) 1.3: Media Play/Pause toggle key event updates center UI, adds log entry, and calls TTS
-  00:01 +7: Tier 1: Feature Coverage (Core Key Actions) 1.4: Media Next Track key event updates center UI, adds log entry, and calls TTS
-  00:01 +8: Tier 1: Feature Coverage (Core Key Actions) 1.5: Media Previous Track key event updates center UI, adds log entry, and calls TTS
-  00:01 +9: Tier 2: Boundary & Corner Cases 2.1: Discrete KEYCODE_MEDIA_PLAY maps to mediaPlayPause action
-  00:01 +10: Tier 2: Boundary & Corner Cases 2.2: Discrete KEYCODE_MEDIA_PAUSE maps to mediaPlayPause action
-  00:01 +11: Tier 2: Boundary & Corner Cases 2.3: Unhandled keys (KeyA, Escape, Enter, Space) pass through without triggering UI or TTS
-  00:01 +12: Tier 2: Boundary & Corner Cases 2.4: Non-KeyDown events (KeyUp, KeyRepeat) are filtered to prevent duplicate triggers
-  00:02 +13: Tier 2: Boundary & Corner Cases 2.5: Clear log button empties log list while retaining center display
-  00:02 +14: Tier 2: Boundary & Corner Cases 2.6: State disposal cleans up key event handler and stops TTS
-  00:02 +15: Tier 3: Sequential & Combinatorial Key Events 3.1: Alternating volume and media buttons maintain chronological log order and speech sequence
-  00:02 +16: Tier 3: Sequential & Combinatorial Key Events 3.2: Rapid consecutive presses of identical key produce multiple distinct log entries and speech calls
-  00:02 +17: Tier 3: Sequential & Combinatorial Key Events 3.3: Rapid Play/Pause toggling across toggle and discrete events
-  00:03 +18: Tier 3: Sequential & Combinatorial Key Events 3.4: Complete all 5 target keys sequential full traversal
-  00:03 +19: All tests passed!
-  ```
-- Exit code: 0 (19 passed, 0 failed, 100% pass rate).
-
-### 1.4 Code Inspection: Real Logic vs. Hardcoded/Facade Implementation
-1. **`HardwareKeyboard` Handler Registration (`lib/main.dart`: lines 341, 347)**:
-   - Registers genuine handler: `HardwareKeyboard.instance.addHandler(_handleKeyEvent)`.
-   - Removes on dispose: `HardwareKeyboard.instance.removeHandler(_handleKeyEvent)`.
-   - Verified via test 2.6: Disposing the widget tree causes subsequent `tester.sendKeyEvent` to return `false` (not handled), proving the handler is genuinely unregistered from Flutter's hardware input pipeline.
-2. **`FlutterTtsService` Native Invocations (`lib/main.dart`: lines 65–120)**:
-   - Calls real `FlutterTts` instance methods:
-     - `_flutterTts.setLanguage("ja-JP")`
-     - `_flutterTts.setSpeechRate(0.5)`
-     - `_flutterTts.setVolume(1.0)`
-     - `_flutterTts.setPitch(1.0)`
-     - `_flutterTts.awaitSpeakCompletion(true)`
-     - `_flutterTts.setSharedInstance(true)` (iOS)
-     - `_flutterTts.setIosAudioCategory(...)` (iOS AVAudioSession category `playback` with Bluetooth flags)
-     - `_flutterTts.stop()`
-     - `_flutterTts.speak(text)`
-   - Production service has genuine try/catch blocks; test fake `FakeTtsService` provides genuine in-memory recording without mocking strings.
-3. **Key Event Resolution (`lib/main.dart`: lines 212–256)**:
-   - Evaluates incoming `KeyEvent.logicalKey` and `KeyEvent.physicalKey` against Flutter SDK key constants.
-   - Genuine mapping: `LogicalKeyboardKey.audioVolumeUp` -> `volumeUp`, `audioVolumeDown` -> `volumeDown`, `mediaPlayPause`/`mediaPlay`/`mediaPause`/`select` -> `mediaPlayPause`, `mediaTrackNext` -> `mediaNext`, `mediaTrackPrevious` -> `mediaPrevious`.
-   - Returns `null` for unhandled keys (verified via tests 2.3).
-4. **Authentic Test Assertions (`test/widget_test.dart`)**:
-   - Inspects real widget hierarchy (`find.text('KEYCODE_VOLUME_UP')`, `find.text('音量アップを受信しました')`, `find.text('リアルタイムログ (1件)')`, `tester.widget<IconButton>(find.byKey(...))`).
-   - Asserts against genuine recorded history in `fakeTts.spokenHistory`.
-   - No self-certifying tests or fixed dummy assertions.
+1. **Static Analysis & Lint Execution**:
+   - Command: `flutter analyze`
+   - Output: `Analyzing noukin_app... No issues found! (ran in 1.7s)`
+   - Exit code: `0`
+2. **Independent Test Execution**:
+   - Command: `flutter test --no-test-assets --reporter expanded`
+   - Output: `00:05 +25: All tests passed!`
+   - Exit code: `0`
+   - Scope: 11 tests from `test/tutorial_screen_test.dart` and 14 tests from `test/widget_test.dart` (total 25 tests, 0 failures, 0 errors, 0 skipped).
+3. **Static Integrity & Code Inspection (`lib/tutorial_screen.dart`)**:
+   - Line 16-83: Deterministic state machine (`TutorialStep.step1Intro` through `TutorialStep.step6Complete`, `Step3Phase.enterMode` / `cycleItem`, `TutorialItem.exerciseName` through `sets` with bidirectional circular navigation).
+   - Line 157-189 & 997-1047: `AnimationController` (duration 1200ms, `CurvedAnimation`, repeating with reverse) providing smooth dual-layer glowing box shadows (`blurRadius` 8-20px & 22-34px). Honors `animateGlow: bool` parameter.
+   - Line 229-258: Genuine `Timer(const Duration(milliseconds: 700), ...)` debounce timer for weight adjustments with `SchedulerBinding.instance.scheduleFrame()` pump loop and strict cancellation upon `ButtonAction.mediaPlayPause` (85), skip, navigation, or disposal.
+   - Line 206-223: Audio hygiene ensuring `await _duckingController.requestDucking()` and `await widget.ttsService?.stop()` prior to every `speak(text)`.
+   - Line 1463-1517: `SpotlightOverlayPainter` implementing authentic `Path.combine(PathOperation.difference, backgroundPath, holePath)` punch-through cutout on 70% opacity black overlay (`const Color(0xB3000000)`).
+   - Zero test-mock hooks, cheat flags (`isTest`, `kDebugMode`), or synthetic bypass branches in production code.
+4. **Preservation of `lib/training_screen.dart` (R1)**:
+   - File modification timestamp: `2026/11/10 09:46:15 UTC` (prior to task prompt approval at `10:01:02Z`).
+   - Zero modifications introduced to `lib/training_screen.dart` during Milestone 1.
+5. **Entry Point Integration (`lib/main.dart`)**:
+   - Lines 44 & 47: `import 'tutorial_screen.dart';` and `export 'tutorial_screen.dart';`.
+   - Lines 705-735: `start_tutorial_button` placed directly below `start_training_button`, pushing `TutorialScreen` with injected `ttsService` and `soundEffectService`.
+6. **Test Assertion Authenticity (`test/tutorial_screen_test.dart`)**:
+   - All 11 tests verify genuine widget tree states (`find.byKey`, `find.text`, `find.byType`), state machine transitions, mock call logs (`fakeSound.beepCount`, `fakeTts.spokenHistory`, `fakeTts.lastSpoken`, `fakeTts.stopCallCount`, `fakeDucking.events`), and time-delayed debouncing.
+   - Zero tautological assertions (`expect(true, isTrue)`).
 
 ---
 
 ## 2. Logic Chain
 
-1. **Integrity Mode Classification**:
-   - `ORIGINAL_REQUEST.md` specifies `Integrity mode: development`.
-   - In Development Mode, the forensic checks strictly prohibit hardcoded test results, facade/dummy implementations, and fabricated verification outputs, while permitting legitimate standard library and package integration (`flutter_tts`).
-2. **Hardcoded Test Results Check**:
-   - Verified that neither `lib/` nor `test/` contains pre-baked results or synthetic bypasses.
-   - When test keys are sent via `tester.sendKeyEvent`, events pass through the actual Flutter input pipeline, execute `_handleKeyEvent`, update state via `setState`, and trigger `ttsService.speak`.
-3. **Facade Implementation Check**:
-   - Verified that `FlutterTtsService` and `_handleKeyEvent` are not empty facades. `FlutterTtsService` communicates directly with `FlutterTts`, and `HardwareKeyboard.instance` manages genuine OS-level hardware key callbacks.
-4. **Behavioral Integrity**:
-   - Running the test suite independently confirmed 19 passing tests with 0 failures, verifying all acceptance criteria from R1 to R5 (volume keys, earphone media keys, Japanese TTS feedback, center dynamic display, real-time log list, and self-contained drop-in execution).
-5. **No Integrity Violations Detected**:
-   - All forensic checks (source code analysis, behavioral execution, dependency audit, pre-populated artifact inspection) passed with empirical proof.
+1. **Absence of Facades and Cheat Branches**:
+   - Static search for keywords (`mock`, `fake`, `dummy`, `test`, `bypass`, `cheat`) in `lib/tutorial_screen.dart` yielded only framework primitives. The logic executes real math (`clamp(0.0, 500.0)`, `_currentWeight +/- 2.5`), real timer debouncing, real canvas path operations, and real navigation transitions.
+2. **Strict R1 Compliance**:
+   - Because `lib/training_screen.dart` was not modified during this milestone, zero regression risk was introduced to existing training screen logic, proven empirically by 100% pass rate of the pre-existing 14 tests in `test/widget_test.dart`.
+3. **Verification of Acceptance Criteria**:
+   - UI spotlight & glow: Verified via `SpotlightOverlayPainter` and `_buildGlowOverlay()`.
+   - Key interaction (Steps 1-6): Verified across Matrix tests 1 through 6 in `test/tutorial_screen_test.dart`.
+   - Skip routes and virtual key bar: Verified in Matrix tests 7 and 8.
+   - Debounce and audio exclusivity: Verified in Matrix tests 4 and 9.
+4. **Conclusion Support**:
+   - Every empirical check passed. No integrity violations, shortcuts, or facades exist. The deliverable is authentic and complete.
 
 ---
 
 ## 3. Caveats
 
-1. **Path Multi-byte Issue on Host Environment**:
-   - The user's Flutter SDK is located in a path containing Japanese characters (`C:\Users\taqmi\06_一時保管\flutter`). Running `flutter test` must use `--no-test-assets` to avoid known Windows `impellerc.exe` asset bundling path issues.
-2. **AVFoundation Physical Volume Rocker on Physical iOS Devices**:
-   - As documented in the architecture notes, Apple's iOS AVFoundation restricts raw volume rocker hardware events from emitting `UIKey` events in third-party apps, while earphone/headset media buttons emit standard HID remote control events. In headless automated testing, `tester.sendKeyEvent` operates at the Flutter binding layer and verifies all keys deterministically.
+- **Physical Bluetooth Earphone Hardware**: The empirical tests executed via Flutter widget testing harnesses and native `KeyEventChannelDispatcher` simulation. While software-level event routing is verified 100%, physical Bluetooth wireless latency or firmware quirks of individual headset models remain subject to physical hardware characteristics. The presence of the virtual key bar and screen touch skip buttons ensures reliable fallback during presentations.
 
 ---
 
 ## 4. Conclusion
 
-**Verdict: CLEAN**
-
-The implementation in `lib/main.dart` and `test/widget_test.dart` satisfies all requirements and integrity criteria:
-- **No hardcoded test results**: Key resolution and event handling are genuine.
-- **No facade implementations**: `HardwareKeyboard` and `FlutterTtsService` integrate real Flutter and plugin APIs.
-- **Genuine test assertions**: Real widget tree elements and call histories are asserted.
-- **Independent test verification**: 19 out of 19 tests pass cleanly under `flutter test --no-test-assets`.
-- **Zero lints or analysis errors**: `flutter analyze` passes cleanly.
-
-The work product is approved for Milestone 1 completion.
+- **Forensic Audit Verdict**: **CLEAN**
+- All requirements of `ORIGINAL_REQUEST.md` (R1 - R6) and acceptance criteria are satisfied authentically.
+- Static analysis is completely clean (`0 issues`).
+- Test suite achieves 100% pass rate (`25/25 tests passed`).
+- Production code is free of facades, cheats, or artificial test shortcuts.
 
 ---
 
 ## 5. Verification Method
 
-To independently reproduce the forensic audit results:
+To independently reproduce the forensic verification:
 
-```powershell
-cd c:\Users\taqmi\02_development\original_program\button_controll_test
+1. **Verify Static Integrity**:
+   ```powershell
+   flutter analyze
+   ```
+   *Expected*: `No issues found!` (exit code 0).
 
-# 1. Check static analysis
-flutter analyze
+2. **Verify Independent Test Suite**:
+   ```powershell
+   flutter test --no-test-assets --reporter expanded
+   ```
+   *Expected*: `00:05 +25: All tests passed!` (exit code 0).
 
-# 2. Check full test suite execution
-flutter test --no-test-assets --reporter expanded
+3. **Verify File Preservation (R1)**:
+   ```powershell
+   git status --short lib/tutorial_screen.dart lib/main.dart lib/training_screen.dart
+   ```
+   *Expected*: `lib/tutorial_screen.dart` (new untracked file), `lib/main.dart` (clean addition of button), `lib/training_screen.dart` (no M1 worker changes).
 
-# 3. Check for pre-populated result files
-Get-ChildItem -Path . -Recurse -Include *.log,*result*,*output* -File | Select-Object FullName
-```
+4. **Invalidation Conditions**:
+   - Any compilation or lint error in `flutter analyze`.
+   - Any test failure in `flutter test`.
+   - Any test bypass hook or hardcoded synthetic output found in `lib/tutorial_screen.dart`.

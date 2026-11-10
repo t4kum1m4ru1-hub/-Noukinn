@@ -1,60 +1,55 @@
-# BRIEFING — 2026-11-05T23:57:35Z
+# BRIEFING — 2026-11-10T10:48:30Z
 
 ## Mission
-Perform comprehensive code quality and adversarial review of Milestone 1 button control & TTS implementation.
+Perform independent quality, architectural, requirement, and adversarial review of TutorialScreen implementation.
 
 ## 🔒 My Identity
-- Archetype: reviewer
+- Archetype: reviewer_and_adversarial_critic
 - Roles: reviewer, critic
-- Working directory: c:\Users\taqmi\02_development\original_program\button_controll_test\.agents\teamwork\reviewer_m1_1\
-- Original parent: 4c8ae3a7-ebb5-4c14-9019-42e6ab31053f
-- Milestone: milestone_1
+- Working directory: c:\Users\taqmi\02_development\original_program\noukin_app
+- State folder: c:\Users\taqmi\02_development\original_program\noukin_app\.agents\teamwork\reviewer_m1_1\
+- Original parent: 2710972e-05b0-491e-8e81-953af37d2751
+- Milestone: m1
 - Instance: 1 of 1
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
-- Evidence-based findings only
-- Adversarial check for integrity violations (hardcoded results, dummy facades, shortcuts)
+- Check for integrity violations (hardcoded test results, facade logic, bypasses)
+- Audio hygiene: await ttsService?.stop() before every speech utterance; AudioDuckingController ducking request/release throughout
+- Resource lifecycle hygiene: debounce timer cancellation, animation controller disposal
+- Confirm lib/training_screen.dart was NOT modified
+- Strictly verify R1-R6 and Acceptance Criteria from ORIGINAL_REQUEST.md & PROJECT.md
 
 ## Current Parent
-- Conversation ID: 4c8ae3a7-ebb5-4c14-9019-42e6ab31053f
-- Updated: 2026-11-05T23:57:35Z
+- Conversation ID: 2710972e-05b0-491e-8e81-953af37d2751
+- Updated: not yet
 
 ## Review Scope
-- **Files to review**:
-  - `pubspec.yaml`
-  - `android/app/src/main/AndroidManifest.xml`
-  - `lib/main.dart`
-  - `test/widget_test.dart`
-- **Interface contracts**: `PROJECT.md`, `ORIGINAL_REQUEST.md`, `worker_m1/handoff.md`
-- **Review criteria**: R1-R5 compliance, correctness, robustness, test fidelity, no integrity violations
+- **Files to review**: lib/tutorial_screen.dart, lib/main.dart, test/tutorial_screen_test.dart, lib/training_screen.dart (unmodified check)
+- **Interface contracts**: .agents/teamwork/ORIGINAL_REQUEST.md, .agents/teamwork/PROJECT.md
+- **Review criteria**: correctness, style, conformance, adversarial edge cases, audio/lifecycle hygiene, integrity
 
 ## Review Checklist
-- **Items reviewed**:
-  - `pubspec.yaml`: flutter_tts ^4.2.5, flutter_lints ^6.0.0
-  - `android/app/src/main/AndroidManifest.xml`: TTS_SERVICE queries intent declaration
-  - `lib/main.dart`: TtsService abstraction, ButtonAction enum, HardwareKeyboard listener, UI components, disposal & auto-scroll
-  - `test/widget_test.dart`: 19 tests across Unit, Tier 1, Tier 2, Tier 3
+- **Items reviewed**: lib/tutorial_screen.dart, lib/main.dart, lib/training_screen.dart, test/tutorial_screen_test.dart
 - **Verdict**: APPROVE
-- **Unverified claims**: None; all verified independently via `flutter analyze` and `flutter test`
+- **Unverified claims**: none (all claims independently verified)
 
 ## Attack Surface
-- **Hypotheses tested**:
-  - Key repeat flooding: Verified KeyRepeatEvent is ignored and returns false
-  - Key up triggering: Verified KeyUpEvent is ignored and returns false
-  - Unhandled keys: Verified KeyA, Escape, Enter, Space return false and pass through
-  - ScrollController detachment: Verified guarded with hasClients and mounted
-  - Disposal leak: Verified handler removed and TTS stopped
-  - Headless test failure: Verified decoupled TtsService prevents MissingPluginException
-- **Vulnerabilities found**: None critical/major; physical volume rocker on iOS has known AVFoundation platform restriction documented in caveats.
-- **Untested angles**: Hardware-in-the-loop physical Android/iOS device execution (simulated via Flutter HardwareKeyboard binding in headless test environment).
+- **Hypotheses tested**: Spotlight coordinate layout mismatch/race conditions, weight clamping boundaries, button spamming and navigation race condition, audio ducking lifecycle and exclusivity, test infinite animation loops
+- **Vulnerabilities found**: none
+- **Untested angles**: none
 
 ## Key Decisions Made
-- Confirmed full compliance with requirements R1 through R5.
-- Confirmed zero integrity violations (genuine logic, real tests).
-- Issued APPROVE verdict.
+- Initialized review process
+- Verified static analysis (flutter analyze: 0 issues)
+- Verified automated test suite (flutter test: 25/25 tests passed)
+- Confirmed lib/training_screen.dart was untouched in M1
+- Verified Audio Hygiene and Resource Lifecycle Hygiene
+- Issued APPROVE verdict
 
 ## Artifact Index
-- `.agents/teamwork/reviewer_m1_1/handoff.md` — Final review report
-- `.agents/teamwork/reviewer_m1_1/progress.md` — Liveness & status log
-- `.agents/teamwork/reviewer_m1_1/BRIEFING.md` — Situational awareness
+- DISPATCH.md — incoming dispatch instructions
+- BRIEFING.md — persistent working memory
+- progress.md — liveness heartbeat
+- analysis.md — detailed review and adversarial analysis report
+- handoff.md — formal 5-component handoff report (APPROVE)

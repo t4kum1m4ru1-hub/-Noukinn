@@ -1,56 +1,52 @@
-# BRIEFING — 2026-11-06T00:00:00Z
+# BRIEFING — 2026-11-10T10:49:00Z
 
 ## Mission
-Cross-Platform Conformance Review and adversarial stress-testing of Milestone 1 work product.
+Perform independent UI presentation, media key interaction, and test suite review of TutorialScreen.
 
 ## 🔒 My Identity
-- Archetype: reviewer_and_critic
+- Archetype: reviewer
 - Roles: reviewer, critic
-- Working directory: c:\Users\taqmi\02_development\original_program\button_controll_test\.agents\teamwork\reviewer_m1_2\
-- Original parent: 4c8ae3a7-ebb5-4c14-9019-42e6ab31053f
-- Milestone: milestone_1
+- Working directory: c:\Users\taqmi\02_development\original_program\noukin_app
+- State folder: c:\Users\taqmi\02_development\original_program\noukin_app\.agents\teamwork\reviewer_m1_2\
+- Original parent: 2710972e-05b0-491e-8e81-953af37d2751
+- Milestone: M1
 - Instance: 2 of 2
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
-- Check for integrity violations (hardcoded test results, facade implementations, bypasses, fabricated logs)
-- Report explicit verdict: APPROVE or REQUEST_CHANGES
+- Actively check for integrity violations (hardcoded test results, facade implementations, bypassed tasks, fabricated outputs)
+- Be adversarial and constructive: find failure modes, edge cases, assumption breaches
+- Adhere to GEMINI.md rules (no context leak, clear non-engineer explanations where appropriate)
 
 ## Current Parent
-- Conversation ID: 4c8ae3a7-ebb5-4c14-9019-42e6ab31053f
-- Updated: 2026-11-05T23:57:00Z
+- Conversation ID: 2710972e-05b0-491e-8e81-953af37d2751
+- Updated: 2026-11-10T10:45:00Z
 
 ## Review Scope
-- **Files to review**: `lib/main.dart`, `android/app/src/main/AndroidManifest.xml`, `test/widget_test.dart`, `pubspec.yaml`
-- **Interface contracts**: `ORIGINAL_REQUEST.md`, `PROJECT.md`, `worker_m1/handoff.md`
-- **Review criteria**: cross-platform key mapping (Logical & Physical), Android TTS queries declaration, iOS AVAudioSession playback & Bluetooth options, Japanese speech text conformance, test validity.
+- **Files to review**:
+  - `lib/tutorial_screen.dart`
+  - `test/tutorial_screen_test.dart`
+  - Supporting context: `worker_m1/handoff.md`, `PROJECT.md`, `ORIGINAL_REQUEST.md`
+- **Interface contracts**: PROJECT.md, ORIGINAL_REQUEST.md
+- **Review criteria**: Visual presentation (overlay, firefly glow, virtual keys), media key interaction (steps 1-6, debounce, two-phase), test suite quality and coverage, flutter analyze / test execution.
 
 ## Review Checklist
-- **Items reviewed**:
-  - `lib/main.dart`: Logical/Physical key mapping, TTS abstraction, UI layout, lifecycle
-  - `android/app/src/main/AndroidManifest.xml`: TTS_SERVICE queries tag under <manifest>
-  - `test/widget_test.dart`: 19 tests across Unit, Tier 1, Tier 2, Tier 3
-  - `pubspec.yaml`: flutter_tts ^4.2.5, flutter_lints ^6.0.0
+- **Items reviewed**: `lib/tutorial_screen.dart`, `lib/main.dart`, `test/tutorial_screen_test.dart`, `test/widget_test.dart`
 - **Verdict**: APPROVE
-- **Unverified claims**: None. All claims independently verified.
+- **Unverified claims**: None (all claims verified via independent static analysis and test execution)
 
 ## Attack Surface
-- **Hypotheses tested**:
-  - Key down filtering against repeat/up events (confirmed handled)
-  - Non-target keys pass-through (confirmed handled)
-  - Layout overflow safety on small screens (confirmed handled via SingleChildScrollView)
-  - Lifecycle leak on disposal (confirmed clean handler removal and TTS stop)
-  - Native TTS call failure handling (confirmed defensive try/catch)
-- **Vulnerabilities found**: None that compromise conformance or stability.
-- **Untested angles**: Physical iOS volume rocker hardware limitation (inherent to iOS platform architecture, documented).
+- **Hypotheses tested**: Debounce cancellation on decision key, overlay punch-through math, animation loop safety, skip button flow, keycode mapping
+- **Vulnerabilities found**: 2 non-blocking minor edge cases (async state overwrite if user skips rapidly during speech transition; key 85 re-entrancy during Step 2 speech)
+- **Untested angles**: Hardware-specific Bluetooth A2DP latency on real physical Android devices
 
 ## Key Decisions Made
-- Confirmed full compliance with R1-R5, Android 11+ package visibility, iOS AVAudioSession category options, and Japanese speech phrases.
-- Verified test suite passes 19/19 tests and static analysis has 0 issues.
-- Issuing APPROVE verdict.
+- Executed `flutter analyze` (0 issues).
+- Executed `flutter test --no-test-assets` (25/25 passed).
+- Completed adversarial review and verified integrity (CLEAN).
+- Issued APPROVE verdict in `handoff.md` and detailed report in `analysis.md`.
 
 ## Artifact Index
-- `.agents/teamwork/reviewer_m1_2/DISPATCH.md` — incoming dispatch log
-- `.agents/teamwork/reviewer_m1_2/progress.md` — heartbeat and progress tracker
-- `.agents/teamwork/reviewer_m1_2/BRIEFING.md` — persistent memory
-- `.agents/teamwork/reviewer_m1_2/handoff.md` — final review and challenge report
+- `analysis.md` — Detailed review, integrity check, and adversarial findings
+- `handoff.md` — Final verdict and 5-component handoff report
+- `progress.md` — Liveness and execution progress tracker

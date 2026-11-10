@@ -18,3 +18,22 @@ Your task:
 3. Detail how tests inject `FakeTtsService` into `ButtonControlApp(ttsService: fakeTts)` and use `tester.sendKeyEvent(...)` to simulate key events deterministically without needing platform channels or external mocking packages.
 4. Save your report to `c:\Users\taqmi\02_development\original_program\button_controll_test\.agents\teamwork\explorer_m1_2\handoff.md`.
 5. Notify orchestrator via send_message.
+
+
+## 2026-11-10T10:15:31Z
+Read ORIGINAL_REQUEST.md at c:\Users\taqmi\02_development\original_program\noukin_app\.agents\teamwork\ORIGINAL_REQUEST.md before starting work.
+Also read PROJECT.md at c:\Users\taqmi\02_development\original_program\noukin_app\.agents\teamwork\PROJECT.md.
+Working directory: c:\Users\taqmi\02_development\original_program\noukin_app
+State folder: c:\Users\taqmi\02_development\original_program\noukin_app\.agents\teamwork\explorer_m1_2\
+
+Objective:
+Formulate the exact visual presentation, layout, and animation design for TutorialScreen in lib/tutorial_screen.dart:
+- Detail CustomPainter for the semi-transparent black overlay (Colors.black.withOpacity(0.70)) with punch-through spotlight Rect / RRect for focused elements.
+- Detail breathing firefly glow animation using AnimationController (repeat with reverse), animated boxShadow, and Positioned + IgnorePointer layer. Include animateGlow: bool = true parameter handling for test safety.
+- Detail each step's visual cards and spotlight targets (Step 1 full screen intro cards, Step 2 center start button, Step 3 exercise & attribute cards, Step 4 weight card with +/- indicators, Step 5 finish prompt, Step 6 celebration card).
+- Detail emergency presentation skip buttons (bottom right) and screen tap fallback.
+- Detail bottom virtual media key bar (_buildMediaControlBar).
+- Provide concrete implementation guidelines for the Worker.
+
+Output:
+Write analysis.md and handoff.md in your state folder and send a completion message back to orchestrator.

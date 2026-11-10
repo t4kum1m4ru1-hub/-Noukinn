@@ -275,7 +275,7 @@ void main() {
     });
   });
 
-  group('Widget Tests: TrainingScreen UI & ステートマシン・音声統合検証', () {
+  group('Widget Tests: TrainingScreen UI & ステートマシン・メディアキー新仕様検証', () {
     late FakeTtsService fakeTts;
     late FakeSoundEffectService fakeSound;
 
@@ -306,6 +306,13 @@ void main() {
       expect(find.byKey(const Key('training_back_button')), findsOneWidget);
       expect(find.byKey(const Key('exercise_image')), findsOneWidget);
 
+      // 疑似メディアキーバーの新ラベル確認
+      expect(find.text('前曲 (内容確認)'), findsOneWidget);
+      expect(find.text('再生/停止 (決定/次へ)'), findsOneWidget);
+      expect(find.text('次曲 (調整/完了)'), findsOneWidget);
+      expect(find.text('Vol-'), findsOneWidget);
+      expect(find.text('Vol+'), findsOneWidget);
+
       await tester.tap(find.byKey(const Key('training_back_button')));
       await tester.pumpAndSettle();
 
@@ -326,7 +333,6 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // 初期値確認（ベンチプレス: 60 kg, 10 回, 3 セット）
       expect(find.text('重量'), findsOneWidget);
       expect(find.text('60 kg'), findsOneWidget);
       expect(find.text('レップ数'), findsOneWidget);
@@ -340,12 +346,11 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
       expect(find.text('62.5 kg'), findsOneWidget);
       expect(fakeSound.beepCount, 1);
-      expect(fakeTts.spokenHistory, isEmpty); // 0.3秒時点ではまだ発話しない
+      expect(fakeTts.spokenHistory, isEmpty);
 
       await tester.pump(const Duration(milliseconds: 450));
       expect(fakeTts.lastSpoken, '62.5kg');
 
-      // -2.5kg で 60kg に戻す
       await tester.tap(find.byKey(const Key('btn_weight_down')));
       await tester.pumpAndSettle();
       expect(find.text('60 kg'), findsOneWidget);
@@ -393,9 +398,22 @@ void main() {
         final nextButton = find.byKey(const Key('btn_next_workout'));
         expect(find.text('ベンチプレス'), findsOneWidget);
         expect(
-          tester.widget<Text>(find.descendant(of: nextButton, matching: find.byType(Text))).data,
+          tester
+              .widget<Text>(
+                find.descendant(
+                  of: nextButton,
+                  matching: find.byType(Text),
+                ),
+              )
+              .data,
           '開始',
         );
+
+        // 通常モード時の音量キー（24, 25）は無効（重量が変化しないこと）
+        await sendNativeKeyEvent(tester, 24);
+        await tester.pump();
+        expect(find.text('60 kg'), findsOneWidget);
+        expect(fakeTts.spokenHistory, isEmpty);
 
         // 1回目押下（開始前 ➔ 進行中）：「開始、ベンチプレス、60kg、10回、3セット」
         await tester.ensureVisible(nextButton);
@@ -403,11 +421,18 @@ void main() {
         await tester.pumpAndSettle();
         expect(fakeTts.lastSpoken, '開始、ベンチプレス、60kg、10回、3セット');
         expect(
-          tester.widget<Text>(find.descendant(of: nextButton, matching: find.byType(Text))).data,
+          tester
+              .widget<Text>(
+                find.descendant(
+                  of: nextButton,
+                  matching: find.byType(Text),
+                ),
+              )
+              .data,
           '次へ',
         );
 
-        // ［前の曲へ］（確認）：現在状態の読み上げ
+        // ［前の曲へ (88)］（確認ボタン）：現在状態の読み上げのみ
         await sendNativeKeyEvent(tester, 88);
         await tester.pumpAndSettle();
         expect(fakeTts.lastSpoken, 'ベンチプレス、60kg、10回、3セット');
@@ -439,7 +464,6 @@ void main() {
         expect(fakeTts.lastSpoken, '完了、お疲れ様でした');
         expect(find.byType(ReviewScreen), findsOneWidget);
 
-        // 「ワークアウトを終了」を押下 -> ホーム画面に戻る
         await tester.ensureVisible(find.byKey(const Key('btn_finish_workout')));
         await tester.tap(find.byKey(const Key('btn_finish_workout')));
         await tester.pumpAndSettle();
@@ -449,7 +473,7 @@ void main() {
     );
 
     testWidgets(
-      '状態B（項目選択）⇔ 状態C（値調整・0.7秒デバウンス・決定・破棄・種目スワップ）がメディアキーで完全動作すること',
+      '新仕様メディアキー：次曲(87)=調整モードトグル、再生停止(85)=決定、前曲(88)=全モード共通確認ボタンが完全動作すること',
       (tester) async {
         await tester.pumpWidget(
           MaterialApp(
@@ -461,22 +485,31 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // 1. 状態Aで［次の曲へ (87)］➔ 状態B（階層1：初期選択「種目名」）へ移行
+        // 1. 通常モードで［次の曲へ (87)］➔ 調整モード（階層1：初期選択「種目名」）へ移行
         await sendNativeKeyEvent(tester, 87);
         await tester.pump();
         expect(fakeTts.lastSpoken, '調整、種目名');
 
-        // 2. 状態Bで［音量UP (24)］➔「重量」へ項目送り
+        // 2. 階層1で［前の曲へ (88)］➔ 状態遷移せず、現在の種目内容のみを読み上げ確認
+        await sendNativeKeyEvent(tester, 88);
+        await tester.pump();
+        expect(fakeTts.lastSpoken, 'ベンチプレス、60kg、10回、3セット');
+        expect(find.text('状態B: 項目選択［種目名］'), findsOneWidget);
+
+        // 3. 階層1で［音量UP (24)］➔「重量」へ項目送り
         await sendNativeKeyEvent(tester, 24);
         await tester.pump();
         expect(fakeTts.lastSpoken, '重量');
 
-        // 3. 状態Bで［次の曲へ (87)］➔ 状態C（階層2：重量調整）へ移行し現在値「60kg」を発話
-        await sendNativeKeyEvent(tester, 87);
+        // 4. 階層1で［再生/停止 (85)］（決定）➔ 階層2（重量調整）へ移行し、電子音＋現在値「60kg」を発話
+        fakeSound.clear();
+        await sendNativeKeyEvent(tester, 85);
         await tester.pump();
+        expect(fakeSound.beepCount, 1);
         expect(fakeTts.lastSpoken, '60kg');
+        expect(find.text('状態C: 値調整［重量］'), findsOneWidget);
 
-        // 4. 状態Cで［音量UP (24)］を0.2秒間隔で3回連続押下（60 -> 62.5 -> 65 -> 67.5kg）
+        // 5. 階層2で［音量UP (24)］を0.2秒間隔で3回連続押下（60 -> 62.5 -> 65 -> 67.5kg）
         fakeTts.clear();
         fakeSound.clear();
 
@@ -494,36 +527,33 @@ void main() {
         await tester.pump(const Duration(milliseconds: 200));
         expect(find.text('67.5 kg'), findsOneWidget);
         expect(fakeSound.beepCount, 3);
-        expect(fakeTts.spokenHistory, isEmpty); // 最後の押下から0.2秒なのでまだ発話しない
+        expect(fakeTts.spokenHistory, isEmpty);
 
-        // さらに0.55秒経過（合計0.75秒）でデバウンス発話「67.5kg」が1回だけ実行される
+        // 合計0.75秒経過でデバウンス発話「67.5kg」が1回だけ実行される
         await tester.pump(const Duration(milliseconds: 550));
         expect(fakeTts.spokenHistory, ['67.5kg']);
 
-        // 5. 状態Cで［前の曲へ (88)］（破棄）➔ 元の60kgに戻り「戻る、重量」を発話して状態Bへ
+        // 6. 階層2で［前の曲へ (88)］（確認ボタン）➔ 値や階層を変えずに現在内容を読み上げ確認
         await sendNativeKeyEvent(tester, 88);
         await tester.pump();
-        expect(find.text('60 kg'), findsOneWidget);
-        expect(fakeTts.lastSpoken, '戻る、重量');
+        expect(find.text('67.5 kg'), findsOneWidget);
+        expect(find.text('状態C: 値調整［重量］'), findsOneWidget);
+        expect(fakeTts.lastSpoken, 'ベンチプレス、67.5kg、10回、3セット');
 
-        // 6. 再度状態Cへ入り +2.5kg (62.5kg) にして［次の曲へ (87)］で決定保存
-        await sendNativeKeyEvent(tester, 87); // 状態Cへ
+        // 7. 階層2で［再生/停止 (85)］（決定）➔ 変更値を確定して階層1へ戻る（電子音＋「調整、重量」）
+        fakeSound.clear();
+        await sendNativeKeyEvent(tester, 85);
         await tester.pump();
-        await sendNativeKeyEvent(tester, 24); // 62.5kg
-        await tester.pump(const Duration(milliseconds: 750));
-        expect(fakeTts.lastSpoken, '62.5kg');
-
-        await sendNativeKeyEvent(tester, 87); // 決定 ➔ 状態Bへ戻る
-        await tester.pump();
-        expect(find.text('62.5 kg'), findsOneWidget);
+        expect(fakeSound.beepCount, 1);
+        expect(find.text('状態B: 項目選択［重量］'), findsOneWidget);
         expect(fakeTts.lastSpoken, '調整、重量');
 
-        // 7. 状態Bで［音量DOWN (25)］➔「種目名」に戻し、状態Cで種目を「レッグプレス」に変更してスワップ確定
+        // 8. 階層1で［音量DOWN (25)］➔「種目名」に戻し、［再生/停止 (85)］で階層2へ入り種目をレッグプレスへ変更
         await sendNativeKeyEvent(tester, 25); // 種目名
         await tester.pump();
         expect(fakeTts.lastSpoken, '種目名');
 
-        await sendNativeKeyEvent(tester, 87); // 状態C（種目名変更）へ
+        await sendNativeKeyEvent(tester, 85); // 階層2（種目名調整）へ
         await tester.pump();
         expect(fakeTts.lastSpoken, 'ベンチプレス');
 
@@ -532,14 +562,13 @@ void main() {
         expect(find.text('レッグプレス'), findsOneWidget);
         expect(fakeTts.lastSpoken, 'レッグプレス');
 
-        await sendNativeKeyEvent(tester, 87); // 決定（スワップ確定）➔ 状態Bへ
+        // 9. 階層2から直接［次の曲へ (87)］（調整モードのトグル完了）を押下 ➔
+        //    種目スワップを確定反映して一発で通常モードへ復帰！
+        await sendNativeKeyEvent(tester, 87);
         await tester.pump();
-        expect(fakeTts.lastSpoken, '調整、種目名');
+        expect(find.text('状態A: 通常（進行中）'), findsOneWidget);
+        expect(find.text('レッグプレス'), findsOneWidget);
         expect(find.text('80 kg'), findsOneWidget);
-
-        // 8. 状態Bで［前の曲へ (88)］（終了）➔ 状態Aへ復帰し「確定、開始、レッグプレス、80kg、10回、3セット」
-        await sendNativeKeyEvent(tester, 88);
-        await tester.pump();
         expect(fakeTts.lastSpoken, '確定、開始、レッグプレス、80kg、10回、3セット');
       },
     );

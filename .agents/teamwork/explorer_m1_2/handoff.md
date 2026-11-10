@@ -1,602 +1,99 @@
-# Handoff Report — Automated Test Design Explorer (M1)
+# Handoff Report: TutorialScreen Visual Presentation, Layout, and Animation Design
 
-**Agent**: `explorer_m1_2` (Automated Test Design Explorer)  
-**Date**: 2026-11-05T23:45:00Z  
-**Target Milestone**: M1 / Test Design Specification (fostering M2 test implementation)  
-**Target File**: `test/widget_test.dart`  
-**Integrity Mode**: development  
+**Folder**: `c:\Users\taqmi\02_development\original_program\noukin_app\.agents\teamwork\explorer_m1_2\`  
+**Date**: 2026-11-10  
+**Status**: Completed (Hard Handoff)
 
 ---
 
 ## 1. Observation
 
-### 1.1 Flutter Framework Key Simulation APIs
-Direct inspection of the Flutter SDK test framework in `C:\Users\taqmi\06_一時保管\flutter\packages\flutter_test\lib\src\controller.dart`:
-- **`WidgetTester.sendKeyEvent`** (lines 2213–2228):
-  ```dart
-  Future<bool> sendKeyEvent(
-    LogicalKeyboardKey key, {
-    String? platform,
-    String? character,
-    PhysicalKeyboardKey? physicalKey,
-  }) async {
-    final bool handled = await simulateKeyDownEvent(
-      key,
-      platform: platform,
-      character: character,
-      physicalKey: physicalKey,
-    );
-    // Internally wrapped in async guard.
-    await simulateKeyUpEvent(key, platform: platform, physicalKey: physicalKey);
-    return handled;
-  }
-  ```
-  *Key properties*:
-  1. Issues `simulateKeyDownEvent` followed immediately by `simulateKeyUpEvent`.
-  2. Returns `bool handled` representing whether the `KeyDownEvent` was consumed.
-  3. Directly exercises the exact Flutter engine event pipeline (`HardwareKeyboard.instance.addHandler`).
-
-- **Individual Event Simulation APIs** (`controller.dart` lines 2257–2315):
-  - `tester.sendKeyDownEvent(LogicalKeyboardKey key)`: emits pure `KeyDownEvent`.
-  - `tester.sendKeyRepeatEvent(LogicalKeyboardKey key)`: emits pure `KeyRepeatEvent`.
-  - `tester.sendKeyUpEvent(LogicalKeyboardKey key)`: emits pure `KeyUpEvent`.
-  These granular methods allow testing event deduplication, repeat rejection, and orphaned up-event rejection.
-
-### 1.2 SDK LogicalKeyboardKey Constants
-Direct inspection of `C:\Users\taqmi\06_一時保管\flutter\packages\flutter\lib\src\services\keyboard_key.g.dart`:
-- Line 1375: `static const LogicalKeyboardKey audioVolumeUp = LogicalKeyboardKey(0x00100000a10);`
-- Line 1370: `static const LogicalKeyboardKey audioVolumeDown = LogicalKeyboardKey(0x00100000a0f);`
-- Line 1325: `static const LogicalKeyboardKey mediaPlayPause = LogicalKeyboardKey(0x00100000a05);`
-- Line 1725: `static const LogicalKeyboardKey mediaPlay = LogicalKeyboardKey(0x00100000d2f);`
-- Line 1720: `static const LogicalKeyboardKey mediaPause = LogicalKeyboardKey(0x00100000d2e);`
-- Line 1335: `static const LogicalKeyboardKey mediaTrackNext = LogicalKeyboardKey(0x00100000a08);`
-- Line 1340: `static const LogicalKeyboardKey mediaTrackPrevious = LogicalKeyboardKey(0x00100000a09);`
-
-### 1.3 Platform Channel Barrier in Headless Tests
-- `FlutterTts` communicates with Android/iOS native TTS engines via `MethodChannel('flutter_tts')`.
-- In headless test runs (`flutter test`), platform channels have no registered binary messenger handler, throwing:
-  `MissingPluginException(No implementation found for method speak on channel flutter_tts)`.
-- R4 dictates a self-contained deliverable without heavyweight third-party mock generators (like `mockito` with `build_runner`).
-- Survey reports (`survey_explorer_3/handoff.md`) established the `TtsService` interface with `FlutterTtsService` (production) and `FakeTtsService` (testing).
-
-### 1.4 UI Auto-Scroll Animation Behavior
-- In `ButtonControlScreen._processAction`:
-  ```dart
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    if (_scrollController.hasClients) {
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOut,
-      );
-    }
-  });
-  ```
-- Because `animateTo` schedules a 250ms animation curve, calling `await tester.pumpAndSettle()` (or `await tester.pump(const Duration(milliseconds: 300))`) ensures the scroll animation completes cleanly without leaving pending timers.
+1. **`lib/training_screen.dart` の既存UIカード構成と操作バー構造**:
+   - `lib/training_screen.dart` 360-382行目に、中央の「開始 / 次へ」ボタン（`Key('btn_next_workout')`）が配置されている。
+   - `lib/training_screen.dart` 384-413行目および 431-523行目に、数値調整カード（`card_weight`, `card_reps`, `card_sets`）と増減ボタン（`btn_weight_down`, `btn_weight_up` 等）が配置されている。
+   - `lib/training_screen.dart` 658-761行目に、5ボタン構成（`btn_media_prev`, `btn_media_play_pause`, `btn_media_next`, `btn_media_vol_down`, `btn_media_vol_up`）の疑似メディアキーバー（`_buildMediaControlBar`）が実装されている。
+2. **`lib/theme/app_colors.dart` のカラーパレット仕様**:
+   - `background: Color(0xFF121212)`
+   - `surface: Color(0xFF1E1E1E)`
+   - `surfaceVariant: Color(0xFF2C2C2C)`
+   - `border: Color(0xFF2E2E2E)`
+   - `tealAccent: Colors.tealAccent`
+   - `primaryAccent: Color(0xFFFF9100)`
+3. **`lib/main.dart` のキー配信およびエントリーポイント導線**:
+   - `lib/main.dart` 472-524行目: `KeyEventChannelDispatcher` がシングルトンとして最前面画面に `ButtonAction`（85, 79, 24, 25, 87, 88）を配信。
+   - `lib/main.dart` 674-702行目: 「トレーニング開始」ボタン（`Key('start_training_button')`）が配置されており、その直下に「操作チュートリアルを体験する」ボタンを追加する導線が存在する。
+4. **`test/widget_test.dart` のテスト実行環境**:
+   - `sendNativeKeyEvent(tester, keyCode)`（`test/widget_test.dart` 10-32行目）により、キーイベント発火がシミュレーション可能。
+   - `AnimationController.repeat(reverse: true)` が稼働したままテスト内で `tester.pumpAndSettle()` を呼ぶと、未完了フレームが持続するためタイムアウトが発生する。
+5. **要件ドキュメント（`ORIGINAL_REQUEST.md`）の R4・R5 仕様**:
+   - R4: 半透明ブラック（Black 70%）暗転オーバーレイ、ホタルの呼吸発光枠線（`AnimationController` ＋ `boxShadow`）、発表用スキップ機能（右下ボタン＋画面タップ）、画面最下部の疑似メディアキーバー。
+   - R5: Step 1（案内画面）、Step 2（開始操作体験）、Step 3（調整モード突入＆項目選択）、Step 4（重量調整とデバウンス体験）、Step 5（調整完了の体験）、Step 6（完了と本編スタート）。
 
 ---
 
 ## 2. Logic Chain
 
-### 2.1 TTS Isolation via Dependency Injection
-1. Direct invocation of `FlutterTts` crashes headless widget tests with `MissingPluginException`.
-2. By constructor-injecting `ttsService` into `ButtonControlApp`:
-   ```dart
-   class ButtonControlApp extends StatelessWidget {
-     final TtsService? ttsService;
-     const ButtonControlApp({super.key, this.ttsService});
-     // Defaults to FlutterTtsService() when null
-   ```
-3. In `test/widget_test.dart`, passing `ButtonControlApp(ttsService: fakeTts)` completely bypasses `MethodChannel`, requiring zero platform mocking or external libraries.
-4. `FakeTtsService` records `spokenHistory` (List<String>) and `lastSpoken` (String?), providing deterministic, synchronous verification of speech phrases.
-
-### 2.2 Event Lifecycle & Filtering
-1. Physical buttons and `tester.sendKeyEvent` emit both `KeyDownEvent` and `KeyUpEvent`.
-2. Holding down a button generates `KeyRepeatEvent`.
-3. If the application handler does not filter events, every button click triggers two or more speech announcements and duplicate log rows.
-4. Testing must verify that:
-   - `KeyDownEvent` executes the action and returns `true`.
-   - `KeyRepeatEvent` and `KeyUpEvent` return `false` and generate zero additional TTS or log entries.
-   - Unhandled keys (e.g. `KeyA`, `GoBack`) return `false` and do not disturb UI or TTS state.
-
-### 2.3 Multi-Tier Test Suite Architecture
-To ensure complete coverage fulfilling R5, the test suite is structured into 3 distinct tiers:
-
-```
-test/widget_test.dart
-├── Unit Tests: Domain Models & Helpers
-│   ├── ButtonAction.fromLogicalKey mapping completeness
-│   ├── KeyEventLog formatted timestamp (zero-padding)
-│   └── FakeTtsService isolation behavior
-│
-├── Tier 1: Feature Coverage (Core Key Detection & UI/TTS Reactions)
-│   ├── 1.0 Initial state (waiting prompt, empty log, disabled clear button)
-│   ├── 1.1 Volume Up (KEYCODE_VOLUME_UP -> UI + Log + "音量アップを受信しました")
-│   ├── 1.2 Volume Down (KEYCODE_VOLUME_DOWN -> UI + Log + "音量ダウンを受信しました")
-│   ├── 1.3 Media Play/Pause toggle (KEYCODE_MEDIA_PLAY_PAUSE -> UI + Log + "再生・停止ボタンが押されました")
-│   ├── 1.4 Media Next Track (KEYCODE_MEDIA_NEXT -> UI + Log + "次の曲ボタンを受信しました")
-│   └── 1.5 Media Previous Track (KEYCODE_MEDIA_PREVIOUS -> UI + Log + "前の曲ボタンを受信しました")
-│
-├── Tier 2: Boundary & Corner Cases
-│   ├── 2.1 Discrete KEYCODE_MEDIA_PLAY mapping to mediaPlayPause
-│   ├── 2.2 Discrete KEYCODE_MEDIA_PAUSE mapping to mediaPlayPause
-│   ├── 2.3 Unhandled keys (KeyA, GoBack, Enter, Space) passthrough without mutation
-│   ├── 2.4 Duplicate/repeat rejection (KeyDown vs KeyRepeat vs KeyUp)
-│   ├── 2.5 Clear log functionality (AppBar button clears list, retains center readout)
-│   └── 2.6 State lifecycle & disposal (removeHandler called, TTS stopped)
-│
-└── Tier 3: Sequential & Combinatorial Key Events
-    ├── 3.1 Alternating volume & media button sequences (chronological order)
-    ├── 3.2 Rapid repeated presses of identical key (multi-event accumulation)
-    ├── 3.3 Media play/pause toggling across toggle/discrete events
-    └── 3.4 Full 5-key canonical traversal sequence
-```
+1. **差分くり抜きスポットライト方式の採用**（Observation 5, 2 に基づく）:
+   - 全画面を `Colors.black.withOpacity(0.70)`（`Color(0xB3000000)`）で覆い、注目対象矩形（`targetRect`）を `PathOperation.difference` でくり抜く `SpotlightOverlayPainter` を設計。
+   - オフスクリーンバッファを確保する `saveLayer` を使用しないため、描画パフォーマンスが最大化され、くり抜かれたボタンやカードは100%の透過度でクリアに視認できる。
+2. **ホタルの呼吸発光枠線と `IgnorePointer`**（Observation 5, 2 に基づく）:
+   - 1200ms周期（`Curves.easeInOut`）の `AnimationController` と `AppColors.tealAccent` の二重 `boxShadow` を組み合わせることで、生体的な明滅エフェクトを実現。
+   - この発光レイヤーを `Positioned` ＋ `IgnorePointer` で配置することにより、スポットライト内のボタンタップ判定が下層ウィジェットへ完全に透過し、ユーザーが実機画面のボタンを直接タップしても確実に反応する。
+3. **テスト安全性引数 `animateGlow` の必然性**（Observation 4 に基づく）:
+   - `AnimationController.repeat(reverse: true)` はテスト環境で `pumpAndSettle timed out` を引き起こす。
+   - コンストラクタ引数 `animateGlow: bool = true` を設け、テスト時に `animateGlow: false` を渡すことでリピートを開始せず、固定値 1.0 の枠線を表示する設計とした。これにより、テスト実行時にすべてのフレームタイマーが安全に停止し、即座に検証を完了できる。
+4. **全6ステップのビジュアルとフォーカス要素の体系化**（Observation 1, 5 に基づく）:
+   - Step 1: 全画面案内カード（暗転なし、`targetRect = null`）
+   - Step 2: 中央「開始」ボタン（`Key('btn_next_workout')`）をスポットライト
+   - Step 3 Part 1: 種目名表示領域をスポットライト（87キーで突入）
+   - Step 3 Part 2: 選択中の項目カード（種目名 ⇄ 重量 ⇄ レップ数 ⇄ セット数）にスポットライトが連動移動
+   - Step 4: 重量カード（`Key('card_weight')`）をスポットライトし、リアルタイム ±2.5kg 更新と 0.7秒デバウンスTTS読み上げ
+   - Step 5: 全画面暗転（`targetRect = null`）、中央に調整完了案内カードを表示
+   - Step 6: 暗転解除、祝福カード（`Key('card_step6_celebration')`）と「最初のトレーニングを開始する」ボタン
+5. **発表時の機材トラブル防止設計**（Observation 1, 5 に基づく）:
+   - 右下に常設スキップボタン（`Key('btn_tutorial_skip')`）を配置し、暗転画面全体のタップフォールバックを組み込むことで、Bluetoothイヤホンの通信トラブル時もプレゼン実演を継続可能とした。
+   - 疑似メディアキーバー（`_buildMediaControlBar`）を暗転オーバーレイの最前面（上層）に常設し、PC/エミュレータ/マウスタップでも100%同一の操作パイプラインを実行可能とした。
 
 ---
 
 ## 3. Caveats
 
-1. **Center Display vs. Log List Finder Ambiguity**:
-   - When a key event is detected, `action.keyName` (e.g. `KEYCODE_VOLUME_UP`) appears in both the center readout (`_buildCenterDisplay`) and the list tile (`_buildLogList`).
-   - Using `find.text('KEYCODE_VOLUME_UP')` matches **2** widgets (`findsWidgets` or `findsNWidgets(2)`).
-   - If tests specifically target the center display, use descendant finders:
-     `find.descendant(of: find.byType(Center), matching: find.text('KEYCODE_VOLUME_UP'))`.
-2. **Animation Clock Settling**:
-   - `ListView` auto-scrolls using a 250ms animation. Always call `await tester.pumpAndSettle()` after dispatching key events to ensure the animation ticker finishes.
-3. **Physical Device OS Differences vs Framework Tests**:
-   - On physical iOS devices, side volume rockers are routed through AVFoundation/CoreAudio rather than `UIKey` hardware keyboards.
-   - In automated widget testing (`flutter test`), `tester.sendKeyEvent` operates at the engine binding level and behaves 100% consistently across all operating systems.
-4. **Enhanced `FakeTtsService` Recommendation**:
-   - To support Tier 2 lifecycle verification (`Test 2.6`), `FakeTtsService` should include `int stopCallCount = 0;` incremented inside `stop()`.
+1. **初回ビルド時の `targetRect` 取得**:
+   - `GlobalKey` による要素の座標取得（`RenderBox.localToGlobal`）は、最初のフレーム描画完了後（`WidgetsBinding.instance.addPostFrameCallback`）にのみ有効です。そのため、初回フレームでは `_spotlightRect = null`（全画面暗転）で描画され、コールバック内で座標が確定した瞬間にスポットライトくり抜きが適用されます。
+2. **`TrainingScreen` の非変更制約**:
+   - 既存の `lib/training_screen.dart` は一切変更してはなりません。すべてのUI・アニメーション演出は新規作成する `lib/tutorial_screen.dart` 内に独立して完結させる必要があります。
 
 ---
 
-## 4. Conclusion & Concrete Implementation
-
-Below is the complete, drop-in ready automated test suite designed for `test/widget_test.dart`.
-
-```dart
-// ============================================================================
-// Automated Verification Test Suite for Button Control Application
-// ============================================================================
-//
-// Fulfills Requirement R5:
-// - Simulates hardware key press events: Volume Up, Volume Down, Play/Pause,
-//   Next Track, Previous Track.
-// - Verifies key event interception, center display readout, timestamped log,
-//   and flutter_tts invocation via FakeTtsService.
-// - Multi-tier structure:
-//     Tier 1: Feature coverage for each target key
-//     Tier 2: Boundary & Corner cases (discrete keys, unhandled keys, deduplication)
-//     Tier 3: Sequential & combinatorial key events
-// ============================================================================
-
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:button_controll_test/main.dart';
-
-void main() {
-  group('Unit Tests: Domain Models & Helpers', () {
-    test('ButtonAction.fromLogicalKey maps all target logical keys correctly', () {
-      expect(ButtonAction.fromLogicalKey(LogicalKeyboardKey.audioVolumeUp), ButtonAction.volumeUp);
-      expect(ButtonAction.fromLogicalKey(LogicalKeyboardKey.audioVolumeDown), ButtonAction.volumeDown);
-      expect(ButtonAction.fromLogicalKey(LogicalKeyboardKey.mediaPlayPause), ButtonAction.mediaPlayPause);
-      expect(ButtonAction.fromLogicalKey(LogicalKeyboardKey.mediaPlay), ButtonAction.mediaPlayPause);
-      expect(ButtonAction.fromLogicalKey(LogicalKeyboardKey.mediaPause), ButtonAction.mediaPlayPause);
-      expect(ButtonAction.fromLogicalKey(LogicalKeyboardKey.mediaTrackNext), ButtonAction.mediaNext);
-      expect(ButtonAction.fromLogicalKey(LogicalKeyboardKey.mediaTrackPrevious), ButtonAction.mediaPrevious);
-
-      // Unhandled keys must return null
-      expect(ButtonAction.fromLogicalKey(LogicalKeyboardKey.keyA), isNull);
-      expect(ButtonAction.fromLogicalKey(LogicalKeyboardKey.enter), isNull);
-      expect(ButtonAction.fromLogicalKey(LogicalKeyboardKey.escape), isNull);
-      expect(ButtonAction.fromLogicalKey(LogicalKeyboardKey.audioVolumeMute), isNull);
-    });
-
-    test('KeyEventLog formattedTime produces zero-padded HH:mm:ss.SSS', () {
-      final log = KeyEventLog(
-        timestamp: DateTime(2026, 11, 6, 9, 5, 3, 42),
-        action: ButtonAction.volumeUp,
-      );
-      expect(log.formattedTime, '09:05:03.042');
-    });
-
-    test('FakeTtsService records history and clears correctly', () async {
-      final fakeTts = FakeTtsService();
-      expect(fakeTts.isInitialized, isFalse);
-      expect(fakeTts.spokenHistory, isEmpty);
-      expect(fakeTts.lastSpoken, isNull);
-
-      await fakeTts.speak('テスト1');
-      expect(fakeTts.isInitialized, isTrue);
-      expect(fakeTts.spokenHistory, ['テスト1']);
-      expect(fakeTts.lastSpoken, 'テスト1');
-
-      await fakeTts.speak('テスト2');
-      expect(fakeTts.spokenHistory, ['テスト1', 'テスト2']);
-      expect(fakeTts.lastSpoken, 'テスト2');
-
-      fakeTts.clear();
-      expect(fakeTts.spokenHistory, isEmpty);
-      expect(fakeTts.lastSpoken, isNull);
-    });
-  });
-
-  group('Tier 1: Feature Coverage (Core Key Actions)', () {
-    late FakeTtsService fakeTts;
-
-    setUp(() {
-      fakeTts = FakeTtsService();
-    });
-
-    testWidgets('1.0: Initial State displays waiting prompt, empty log, and disabled clear button', (WidgetTester tester) async {
-      await tester.pumpWidget(ButtonControlApp(ttsService: fakeTts));
-      await tester.pumpAndSettle();
-
-      // Center idle prompt
-      expect(find.text('ボタンを押してください'), findsOneWidget);
-      expect(find.text('Volume Up/Down または イヤホンボタン'), findsOneWidget);
-
-      // Empty log indicator
-      expect(find.text('ログはありません'), findsOneWidget);
-      expect(find.text('リアルタイムログ (0件)'), findsOneWidget);
-
-      // Clear button disabled
-      final clearButton = tester.widget<IconButton>(find.byTooltip('Clear Logs'));
-      expect(clearButton.onPressed, isNull);
-
-      // TTS initialized without utterances
-      expect(fakeTts.isInitialized, isTrue);
-      expect(fakeTts.spokenHistory, isEmpty);
-    });
-
-    testWidgets('1.1: Volume Up key event updates center UI, adds log entry, and calls TTS', (WidgetTester tester) async {
-      await tester.pumpWidget(ButtonControlApp(ttsService: fakeTts));
-      await tester.pumpAndSettle();
-
-      final handled = await tester.sendKeyEvent(LogicalKeyboardKey.audioVolumeUp);
-      await tester.pumpAndSettle();
-
-      expect(handled, isTrue);
-      expect(find.text('KEYCODE_VOLUME_UP'), findsWidgets);
-      expect(find.text('音量アップを受信しました'), findsWidgets);
-      expect(find.text('リアルタイムログ (1件)'), findsOneWidget);
-      expect(fakeTts.spokenHistory, ['音量アップを受信しました']);
-      expect(fakeTts.lastSpoken, '音量アップを受信しました');
-    });
-
-    testWidgets('1.2: Volume Down key event updates center UI, adds log entry, and calls TTS', (WidgetTester tester) async {
-      await tester.pumpWidget(ButtonControlApp(ttsService: fakeTts));
-      await tester.pumpAndSettle();
-
-      final handled = await tester.sendKeyEvent(LogicalKeyboardKey.audioVolumeDown);
-      await tester.pumpAndSettle();
-
-      expect(handled, isTrue);
-      expect(find.text('KEYCODE_VOLUME_DOWN'), findsWidgets);
-      expect(find.text('音量ダウンを受信しました'), findsWidgets);
-      expect(find.text('リアルタイムログ (1件)'), findsOneWidget);
-      expect(fakeTts.spokenHistory, ['音量ダウンを受信しました']);
-      expect(fakeTts.lastSpoken, '音量ダウンを受信しました');
-    });
-
-    testWidgets('1.3: Media Play/Pause toggle key event updates center UI, adds log entry, and calls TTS', (WidgetTester tester) async {
-      await tester.pumpWidget(ButtonControlApp(ttsService: fakeTts));
-      await tester.pumpAndSettle();
-
-      final handled = await tester.sendKeyEvent(LogicalKeyboardKey.mediaPlayPause);
-      await tester.pumpAndSettle();
-
-      expect(handled, isTrue);
-      expect(find.text('KEYCODE_MEDIA_PLAY_PAUSE'), findsWidgets);
-      expect(find.text('再生・停止ボタンが押されました'), findsWidgets);
-      expect(find.text('リアルタイムログ (1件)'), findsOneWidget);
-      expect(fakeTts.spokenHistory, ['再生・停止ボタンが押されました']);
-      expect(fakeTts.lastSpoken, '再生・停止ボタンが押されました');
-    });
-
-    testWidgets('1.4: Media Next Track key event updates center UI, adds log entry, and calls TTS', (WidgetTester tester) async {
-      await tester.pumpWidget(ButtonControlApp(ttsService: fakeTts));
-      await tester.pumpAndSettle();
-
-      final handled = await tester.sendKeyEvent(LogicalKeyboardKey.mediaTrackNext);
-      await tester.pumpAndSettle();
-
-      expect(handled, isTrue);
-      expect(find.text('KEYCODE_MEDIA_NEXT'), findsWidgets);
-      expect(find.text('次の曲ボタンを受信しました'), findsWidgets);
-      expect(find.text('リアルタイムログ (1件)'), findsOneWidget);
-      expect(fakeTts.spokenHistory, ['次の曲ボタンを受信しました']);
-      expect(fakeTts.lastSpoken, '次の曲ボタンを受信しました');
-    });
-
-    testWidgets('1.5: Media Previous Track key event updates center UI, adds log entry, and calls TTS', (WidgetTester tester) async {
-      await tester.pumpWidget(ButtonControlApp(ttsService: fakeTts));
-      await tester.pumpAndSettle();
-
-      final handled = await tester.sendKeyEvent(LogicalKeyboardKey.mediaTrackPrevious);
-      await tester.pumpAndSettle();
-
-      expect(handled, isTrue);
-      expect(find.text('KEYCODE_MEDIA_PREVIOUS'), findsWidgets);
-      expect(find.text('前の曲ボタンを受信しました'), findsWidgets);
-      expect(find.text('リアルタイムログ (1件)'), findsOneWidget);
-      expect(fakeTts.spokenHistory, ['前の曲ボタンを受信しました']);
-      expect(fakeTts.lastSpoken, '前の曲ボタンを受信しました');
-    });
-  });
-
-  group('Tier 2: Boundary & Corner Cases', () {
-    late FakeTtsService fakeTts;
-
-    setUp(() {
-      fakeTts = FakeTtsService();
-    });
-
-    testWidgets('2.1: Discrete KEYCODE_MEDIA_PLAY maps to mediaPlayPause action', (WidgetTester tester) async {
-      await tester.pumpWidget(ButtonControlApp(ttsService: fakeTts));
-      await tester.pumpAndSettle();
-
-      final handled = await tester.sendKeyEvent(LogicalKeyboardKey.mediaPlay);
-      await tester.pumpAndSettle();
-
-      expect(handled, isTrue);
-      expect(find.text('KEYCODE_MEDIA_PLAY_PAUSE'), findsWidgets);
-      expect(fakeTts.lastSpoken, '再生・停止ボタンが押されました');
-      expect(find.text('リアルタイムログ (1件)'), findsOneWidget);
-    });
-
-    testWidgets('2.2: Discrete KEYCODE_MEDIA_PAUSE maps to mediaPlayPause action', (WidgetTester tester) async {
-      await tester.pumpWidget(ButtonControlApp(ttsService: fakeTts));
-      await tester.pumpAndSettle();
-
-      final handled = await tester.sendKeyEvent(LogicalKeyboardKey.mediaPause);
-      await tester.pumpAndSettle();
-
-      expect(handled, isTrue);
-      expect(find.text('KEYCODE_MEDIA_PLAY_PAUSE'), findsWidgets);
-      expect(fakeTts.lastSpoken, '再生・停止ボタンが押されました');
-      expect(find.text('リアルタイムログ (1件)'), findsOneWidget);
-    });
-
-    testWidgets('2.3: Unhandled keys (KeyA, GoBack, Enter, Space) pass through without triggering UI or TTS', (WidgetTester tester) async {
-      await tester.pumpWidget(ButtonControlApp(ttsService: fakeTts));
-      await tester.pumpAndSettle();
-
-      final unhandledKeys = [
-        LogicalKeyboardKey.keyA,
-        LogicalKeyboardKey.goBack,
-        LogicalKeyboardKey.enter,
-        LogicalKeyboardKey.space,
-      ];
-
-      for (final key in unhandledKeys) {
-        final handled = await tester.sendKeyEvent(key);
-        expect(handled, isFalse, reason: 'Key ${key.debugName} should not be handled');
-      }
-      await tester.pumpAndSettle();
-
-      // UI remains in initial state
-      expect(find.text('ボタンを押してください'), findsOneWidget);
-      expect(find.text('ログはありません'), findsOneWidget);
-      expect(find.text('リアルタイムログ (0件)'), findsOneWidget);
-      expect(fakeTts.spokenHistory, isEmpty);
-    });
-
-    testWidgets('2.4: Non-KeyDown events (KeyUp, KeyRepeat) are filtered to prevent duplicate triggers', (WidgetTester tester) async {
-      await tester.pumpWidget(ButtonControlApp(ttsService: fakeTts));
-      await tester.pumpAndSettle();
-
-      // 1. Send single KeyDown event
-      final downHandled = await tester.sendKeyDownEvent(LogicalKeyboardKey.audioVolumeUp);
-      await tester.pump();
-      expect(downHandled, isTrue);
-      expect(fakeTts.spokenHistory.length, 1);
-
-      // 2. Send KeyRepeat event (holding key)
-      final repeatHandled = await tester.sendKeyRepeatEvent(LogicalKeyboardKey.audioVolumeUp);
-      await tester.pump();
-      expect(repeatHandled, isFalse);
-      expect(fakeTts.spokenHistory.length, 1); // No duplicate trigger
-
-      // 3. Send KeyUp event (releasing key)
-      final upHandled = await tester.sendKeyUpEvent(LogicalKeyboardKey.audioVolumeUp);
-      await tester.pumpAndSettle();
-      expect(upHandled, isFalse);
-      expect(fakeTts.spokenHistory.length, 1); // Still exactly 1
-      expect(find.text('リアルタイムログ (1件)'), findsOneWidget);
-
-      // 4. Standalone KeyUp event without prior KeyDown
-      final standaloneUpHandled = await tester.sendKeyUpEvent(LogicalKeyboardKey.audioVolumeDown);
-      await tester.pumpAndSettle();
-      expect(standaloneUpHandled, isFalse);
-      expect(fakeTts.spokenHistory.length, 1);
-      expect(find.text('リアルタイムログ (1件)'), findsOneWidget);
-    });
-
-    testWidgets('2.5: Clear log button empties log list while retaining center display', (WidgetTester tester) async {
-      await tester.pumpWidget(ButtonControlApp(ttsService: fakeTts));
-      await tester.pumpAndSettle();
-
-      // Generate two key events
-      await tester.sendKeyEvent(LogicalKeyboardKey.audioVolumeUp);
-      await tester.pumpAndSettle();
-      await tester.sendKeyEvent(LogicalKeyboardKey.mediaTrackNext);
-      await tester.pumpAndSettle();
-
-      expect(find.text('リアルタイムログ (2件)'), findsOneWidget);
-      expect(find.text('KEYCODE_MEDIA_NEXT'), findsWidgets);
-
-      // Tap AppBar clear action
-      final clearButtonFinder = find.byTooltip('Clear Logs');
-      expect(clearButtonFinder, findsOneWidget);
-      await tester.tap(clearButtonFinder);
-      await tester.pumpAndSettle();
-
-      // Logs are cleared
-      expect(find.text('リアルタイムログ (0件)'), findsOneWidget);
-      expect(find.text('ログはありません'), findsOneWidget);
-
-      // Center display still retains latest key readout
-      expect(find.text('KEYCODE_MEDIA_NEXT'), findsOneWidget);
-
-      // Clear button is disabled again
-      final clearButton = tester.widget<IconButton>(clearButtonFinder);
-      expect(clearButton.onPressed, isNull);
-    });
-
-    testWidgets('2.6: State disposal cleans up key event handler and stops TTS', (WidgetTester tester) async {
-      await tester.pumpWidget(ButtonControlApp(ttsService: fakeTts));
-      await tester.pumpAndSettle();
-
-      await tester.sendKeyEvent(LogicalKeyboardKey.audioVolumeUp);
-      await tester.pumpAndSettle();
-      expect(fakeTts.spokenHistory.length, 1);
-
-      // Dispose widget tree by replacing with empty Container
-      await tester.pumpWidget(const SizedBox.shrink());
-      await tester.pumpAndSettle();
-
-      // Verify TTS stop was called on disposal
-      expect(fakeTts.stopCallCount, greaterThanOrEqualTo(1));
-
-      // Key event dispatched after disposal must NOT be handled
-      final handledAfterDispose = await tester.sendKeyEvent(LogicalKeyboardKey.audioVolumeUp);
-      expect(handledAfterDispose, isFalse);
-      expect(fakeTts.spokenHistory.length, 1);
-    });
-  });
-
-  group('Tier 3: Sequential & Combinatorial Key Events', () {
-    late FakeTtsService fakeTts;
-
-    setUp(() {
-      fakeTts = FakeTtsService();
-    });
-
-    testWidgets('3.1: Alternating volume and media buttons maintain chronological log order and speech sequence', (WidgetTester tester) async {
-      await tester.pumpWidget(ButtonControlApp(ttsService: fakeTts));
-      await tester.pumpAndSettle();
-
-      final sequence = [
-        LogicalKeyboardKey.audioVolumeUp,
-        LogicalKeyboardKey.mediaPlayPause,
-        LogicalKeyboardKey.audioVolumeDown,
-        LogicalKeyboardKey.mediaTrackNext,
-        LogicalKeyboardKey.audioVolumeUp,
-        LogicalKeyboardKey.mediaTrackPrevious,
-      ];
-
-      for (final key in sequence) {
-        final handled = await tester.sendKeyEvent(key);
-        expect(handled, isTrue);
-        await tester.pumpAndSettle();
-      }
-
-      // Verify exact chronological speech sequence
-      expect(fakeTts.spokenHistory, [
-        '音量アップを受信しました',
-        '再生・停止ボタンが押されました',
-        '音量ダウンを受信しました',
-        '次の曲ボタンを受信しました',
-        '音量アップを受信しました',
-        '前の曲ボタンを受信しました',
-      ]);
-
-      // Verify log count and final center readout
-      expect(find.text('リアルタイムログ (6件)'), findsOneWidget);
-      expect(find.text('KEYCODE_MEDIA_PREVIOUS'), findsWidgets);
-    });
-
-    testWidgets('3.2: Rapid consecutive presses of identical key produce multiple distinct log entries and speech calls', (WidgetTester tester) async {
-      await tester.pumpWidget(ButtonControlApp(ttsService: fakeTts));
-      await tester.pumpAndSettle();
-
-      for (int i = 0; i < 5; i++) {
-        final handled = await tester.sendKeyEvent(LogicalKeyboardKey.audioVolumeUp);
-        expect(handled, isTrue);
-        await tester.pumpAndSettle();
-      }
-
-      expect(fakeTts.spokenHistory.length, 5);
-      expect(fakeTts.spokenHistory.every((text) => text == '音量アップを受信しました'), isTrue);
-      expect(find.text('リアルタイムログ (5件)'), findsOneWidget);
-    });
-
-    testWidgets('3.3: Rapid Play/Pause toggling across toggle and discrete events', (WidgetTester tester) async {
-      await tester.pumpWidget(ButtonControlApp(ttsService: fakeTts));
-      await tester.pumpAndSettle();
-
-      await tester.sendKeyEvent(LogicalKeyboardKey.mediaPlayPause);
-      await tester.pumpAndSettle();
-
-      await tester.sendKeyEvent(LogicalKeyboardKey.mediaPlay);
-      await tester.pumpAndSettle();
-
-      await tester.sendKeyEvent(LogicalKeyboardKey.mediaPause);
-      await tester.pumpAndSettle();
-
-      expect(fakeTts.spokenHistory, [
-        '再生・停止ボタンが押されました',
-        '再生・停止ボタンが押されました',
-        '再生・停止ボタンが押されました',
-      ]);
-      expect(find.text('リアルタイムログ (3件)'), findsOneWidget);
-      expect(find.text('KEYCODE_MEDIA_PLAY_PAUSE'), findsWidgets);
-    });
-
-    testWidgets('3.4: Complete all 5 target keys sequential full traversal', (WidgetTester tester) async {
-      await tester.pumpWidget(ButtonControlApp(ttsService: fakeTts));
-      await tester.pumpAndSettle();
-
-      final allKeys = [
-        (LogicalKeyboardKey.audioVolumeUp, 'KEYCODE_VOLUME_UP', '音量アップを受信しました'),
-        (LogicalKeyboardKey.audioVolumeDown, 'KEYCODE_VOLUME_DOWN', '音量ダウンを受信しました'),
-        (LogicalKeyboardKey.mediaPlayPause, 'KEYCODE_MEDIA_PLAY_PAUSE', '再生・停止ボタンが押されました'),
-        (LogicalKeyboardKey.mediaTrackNext, 'KEYCODE_MEDIA_NEXT', '次の曲ボタンを受信しました'),
-        (LogicalKeyboardKey.mediaTrackPrevious, 'KEYCODE_MEDIA_PREVIOUS', '前の曲ボタンを受信しました'),
-      ];
-
-      for (final (key, expectedName, expectedSpeech) in allKeys) {
-        final handled = await tester.sendKeyEvent(key);
-        expect(handled, isTrue);
-        await tester.pumpAndSettle();
-
-        expect(fakeTts.lastSpoken, expectedSpeech);
-        expect(find.text(expectedName), findsWidgets);
-      }
-
-      expect(fakeTts.spokenHistory.length, 5);
-      expect(find.text('リアルタイムログ (5件)'), findsOneWidget);
-    });
-  });
-}
-```
+## 4. Conclusion
+
+1. **モジュール設計の確立**:
+   - `SpotlightOverlayPainter`（差分減算くり抜き、Black 70%）
+   - `_buildGlowOverlay()`（ホタル呼吸発光枠線、`animateGlow` フラグ対応）
+   - 全6ステップのビジュアルカード・ガイダンスカード・フォーカス要素
+   - 発表用スキップボタン（右下）および画面タップフォールバック
+   - 最前面の疑似メディアキーバー（`_buildMediaControlBar`）
+   すべての詳細設計・コードスニペット・パラメータが `analysis.md` に網羅されました。
+2. **Worker への実装指針**:
+   - Worker は本レポートおよび `analysis.md` に定義されたクラス構造・ステートマシン・レイヤー順序に従って `lib/tutorial_screen.dart` の実装を直ちに開始できます。
 
 ---
 
 ## 5. Verification Method
 
-### 5.1 Verification Commands
-Once the workspace scaffolding and `lib/main.dart` are placed:
-```powershell
-# 1. Fetch dependencies
-flutter pub get
-
-# 2. Run automated test suite
-flutter test
-
-# 3. Optional: Run tests with detailed test name output
-flutter test --reporter expanded
-```
-
-### 5.2 Verification Files to Inspect
-- `test/widget_test.dart` (test suite implementation)
-- `lib/main.dart` (`FakeTtsService` definition and `ButtonControlApp(ttsService: ...)` constructor)
-- `.agents/teamwork/explorer_m1_2/handoff.md` (this test design report)
-
-### 5.3 Invalidation Conditions
-- If `ButtonControlApp` is modified to not accept `TtsService? ttsService`, breaking test dependency injection.
-- If `LogicalKeyboardKey` constants in Flutter SDK change (verified stable across Flutter 3.x / Dart 3.x).
-- If the Japanese speech strings in `ButtonAction` are altered without updating the test assertions.
+1. **設計ドキュメントの整合性検証**:
+   - `c:\Users\taqmi\02_development\original_program\noukin_app\.agents\teamwork\explorer_m1_2\analysis.md` を閲覧し、以下の要件が完全に満たされていることを確認する：
+     - `SpotlightOverlayPainter` の実装コード
+     - `animateGlow: bool = true` のテスト安全機構
+     - Step 1〜Step 6 の全ビジュアルカードとスポットライト座標指定
+     - スキップボタン（`Key('btn_tutorial_skip')`）および画面最下部メディアキーバー（`Key('btn_media_play_pause')` 等）
+2. **既存テストスイートの実行確認**:
+   ```powershell
+   flutter test
+   ```
+   - 期待値: exit code 0、全14テストパス。
+3. **Worker 実装完了後の検証コマンド**:
+   ```powershell
+   flutter test test/tutorial_screen_test.dart
+   ```
+   - 期待値: 全6ステップのUI・アニメーション・キー操作・スキップ・仮想キーバーの自動テストがすべて成功すること。

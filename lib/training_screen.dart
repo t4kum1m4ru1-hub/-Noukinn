@@ -598,31 +598,19 @@ class _TrainingScreenState extends State<TrainingScreen> {
     final targetLabel = _controller.selectedTarget.label;
 
     late final String modeText;
-    late final String prevLabel;
-    late final String playLabel;
-    late final String nextLabel;
     late final String volLabel;
 
     switch (mode) {
       case TrainingMode.normal:
         modeText = _controller.isStarted ? '状態A: 通常（進行中）' : '状態A: 通常（開始前）';
-        prevLabel = '確認';
-        playLabel = _controller.isStarted ? '次へ' : '開始';
-        nextLabel = '調整';
-        volLabel = '重量±';
+        volLabel = '無効';
         break;
       case TrainingMode.adjustSelect:
         modeText = '状態B: 項目選択［$targetLabel］';
-        prevLabel = '確定';
-        playLabel = '決定';
-        nextLabel = '決定';
         volLabel = '項目送り';
         break;
       case TrainingMode.adjustValue:
         modeText = '状態C: 値調整［$targetLabel］';
-        prevLabel = '戻る';
-        playLabel = '決定';
-        nextLabel = '決定';
         volLabel = '値変更';
         break;
     }
@@ -672,7 +660,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
               _buildMediaBarButton(
                 buttonKey: const Key('btn_media_prev'),
                 icon: Icons.skip_previous,
-                label: prevLabel,
+                label: '前曲 (内容確認)',
                 onTap: () =>
                     _controller.handleButtonAction(ButtonAction.mediaPrevious),
               ),
@@ -680,7 +668,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
               _buildMediaBarButton(
                 buttonKey: const Key('btn_media_play_pause'),
                 icon: Icons.play_arrow,
-                label: playLabel,
+                label: '再生/停止 (決定/次へ)',
                 isPrimary: true,
                 onTap: () =>
                     _controller.handleButtonAction(ButtonAction.mediaPlayPause),
@@ -689,7 +677,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
               _buildMediaBarButton(
                 buttonKey: const Key('btn_media_next'),
                 icon: Icons.skip_next,
-                label: nextLabel,
+                label: '次曲 (調整/完了)',
                 onTap: () =>
                     _controller.handleButtonAction(ButtonAction.mediaNext),
               ),
@@ -697,7 +685,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
               _buildMediaBarButton(
                 buttonKey: const Key('btn_media_vol_down'),
                 icon: Icons.volume_down,
-                label: '音量-',
+                label: 'Vol-',
                 onTap: () =>
                     _controller.handleButtonAction(ButtonAction.volumeDown),
               ),
@@ -705,7 +693,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
               _buildMediaBarButton(
                 buttonKey: const Key('btn_media_vol_up'),
                 icon: Icons.volume_up,
-                label: '音量+',
+                label: 'Vol+',
                 onTap: () =>
                     _controller.handleButtonAction(ButtonAction.volumeUp),
               ),
@@ -729,7 +717,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
         onTap: onTap,
         borderRadius: BorderRadius.circular(8),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 3),
           decoration: BoxDecoration(
             color: isPrimary
                 ? AppColors.primaryAccent.withAlpha(40)
@@ -750,16 +738,18 @@ class _TrainingScreenState extends State<TrainingScreen> {
                     : AppColors.tealAccent,
               ),
               const SizedBox(height: 2),
-              Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.bold,
-                  color: isPrimary
-                      ? AppColors.primaryAccent
-                      : AppColors.textPrimary,
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.bold,
+                    color: isPrimary
+                        ? AppColors.primaryAccent
+                        : AppColors.textPrimary,
+                  ),
                 ),
               ),
             ],
