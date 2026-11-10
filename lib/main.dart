@@ -156,7 +156,52 @@ class FakeAudioDuckingController implements AudioDuckingController {
 }
 
 // ----------------------------------------------------------------------------
-// 2. TTS（音声読み上げ）サービス抽象化レイヤー
+// 2. 電子音（効果音）サービス抽象化レイヤー
+// ----------------------------------------------------------------------------
+
+/// ボタン押下時の短い電子音（ビープ音）を再生するインターフェース
+abstract class SoundEffectService {
+  Future<void> playBeep();
+}
+
+/// Android 標準 ToneGenerator（MethodChannel経由）＋ SystemSound.play(SystemSoundType.click)
+/// フォールバックを組み合わせた低遅延電子音サービス
+class PlatformSoundEffectService implements SoundEffectService {
+  static const MethodChannel _channel = MethodChannel(kKeyEventsChannelName);
+  final AudioDuckingController? duckingController;
+
+  PlatformSoundEffectService({this.duckingController});
+
+  @override
+  Future<void> playBeep() async {
+    try {
+      await duckingController?.requestDucking();
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+        await _channel.invokeMethod<bool>('playBeep');
+      }
+      await SystemSound.play(SystemSoundType.click);
+    } catch (e) {
+      debugPrint('PlatformSoundEffectService.playBeep error: $e');
+    }
+  }
+}
+
+/// テスト検証用のインメモリ電子音サービス
+class FakeSoundEffectService implements SoundEffectService {
+  int beepCount = 0;
+
+  @override
+  Future<void> playBeep() async {
+    beepCount++;
+  }
+
+  void clear() {
+    beepCount = 0;
+  }
+}
+
+// ----------------------------------------------------------------------------
+// 3. TTS（音声読み上げ）サービス抽象化レイヤー
 // ----------------------------------------------------------------------------
 
 /// 音声読み上げ機能のインターフェース
@@ -354,7 +399,7 @@ class FakeTtsService implements TtsService {
 }
 
 // ----------------------------------------------------------------------------
-// 3. キーコード定義・ログモデル
+// 4. キーコード定義・ログモデル・MethodChannel ディスパッチャ
 // ----------------------------------------------------------------------------
 
 /// 検知対象の6種類の物理ボタン・メディアキー定義
@@ -422,6 +467,62 @@ enum ButtonAction {
   }
 }
 
+/// MethodChannel("com.example.noukin/key_events") のイベントを
+/// 最前面のアクティブな画面リスナーへルーティングするディスパッチャ
+class KeyEventChannelDispatcher {
+  KeyEventChannelDispatcher._();
+
+  static final KeyEventChannelDispatcher instance =
+      KeyEventChannelDispatcher._();
+
+  static const MethodChannel _channel = MethodChannel(kKeyEventsChannelName);
+  final List<void Function(ButtonAction action)> _listeners = [];
+
+  void registerListener(void Function(ButtonAction action) listener) {
+    if (!_listeners.contains(listener)) {
+      _listeners.add(listener);
+    }
+    _channel.setMethodCallHandler(_handleMethodCall);
+  }
+
+  void unregisterListener(void Function(ButtonAction action) listener) {
+    _listeners.remove(listener);
+    if (_listeners.isEmpty) {
+      _channel.setMethodCallHandler(null);
+    } else {
+      _channel.setMethodCallHandler(_handleMethodCall);
+    }
+  }
+
+  Future<dynamic> _handleMethodCall(MethodCall call) async {
+    if (call.method == 'playBeep') {
+      return true;
+    }
+
+    int? keyCode;
+    final args = call.arguments;
+    if (args is int) {
+      keyCode = args;
+    } else if (args is Map) {
+      final raw = args['keyCode'];
+      if (raw is int) {
+        keyCode = raw;
+      }
+    }
+
+    if (keyCode == null) {
+      return false;
+    }
+
+    final action = ButtonAction.fromKeyCode(keyCode);
+    if (action != null && _listeners.isNotEmpty) {
+      _listeners.last(action);
+      return true;
+    }
+    return false;
+  }
+}
+
 /// 時刻を HH:mm:ss.SSS 形式に整形する関数
 String formatTimestamp(DateTime dt) {
   final h = dt.hour.toString().padLeft(2, '0');
@@ -442,13 +543,18 @@ class KeyEventLog {
 }
 
 // ----------------------------------------------------------------------------
-// 4. UI アプリケーション & MethodChannel リスナー画面
+// 5. UI アプリケーション & MethodChannel リスナー画面
 // ----------------------------------------------------------------------------
 
 class ButtonControlApp extends StatelessWidget {
   final TtsService? ttsService;
+  final SoundEffectService? soundEffectService;
 
-  const ButtonControlApp({super.key, this.ttsService});
+  const ButtonControlApp({
+    super.key,
+    this.ttsService,
+    this.soundEffectService,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -474,6 +580,7 @@ class ButtonControlApp extends StatelessWidget {
       darkTheme: darkThemeData,
       home: ButtonControlScreen(
         ttsService: ttsService ?? FlutterTtsService(),
+        soundEffectService: soundEffectService,
       ),
     );
   }
@@ -483,18 +590,19 @@ typedef MyApp = ButtonControlApp;
 
 class ButtonControlScreen extends StatefulWidget {
   final TtsService ttsService;
+  final SoundEffectService? soundEffectService;
 
-  const ButtonControlScreen({super.key, required this.ttsService});
+  const ButtonControlScreen({
+    super.key,
+    required this.ttsService,
+    this.soundEffectService,
+  });
 
   @override
   State<ButtonControlScreen> createState() => _ButtonControlScreenState();
 }
 
 class _ButtonControlScreenState extends State<ButtonControlScreen> {
-  static const MethodChannel _keyEventsChannel = MethodChannel(
-    kKeyEventsChannelName,
-  );
-
   final List<KeyEventLog> _logs = [];
   final ScrollController _scrollController = ScrollController();
   ButtonAction? _latestAction;
@@ -504,41 +612,15 @@ class _ButtonControlScreenState extends State<ButtonControlScreen> {
   void initState() {
     super.initState();
     widget.ttsService.initialize();
-    // Android ネイティブ層からのキーイベント通知を受け取るリスナーを登録
-    _keyEventsChannel.setMethodCallHandler(_handleMethodCall);
+    KeyEventChannelDispatcher.instance.registerListener(_processAction);
   }
 
   @override
   void dispose() {
-    _keyEventsChannel.setMethodCallHandler(null);
+    KeyEventChannelDispatcher.instance.unregisterListener(_processAction);
     _scrollController.dispose();
     widget.ttsService.stop();
     super.dispose();
-  }
-
-  /// MethodChannel 経由で届いたキーコードを解析し、対象キーであれば処理する
-  Future<dynamic> _handleMethodCall(MethodCall call) async {
-    int? keyCode;
-    final args = call.arguments;
-    if (args is int) {
-      keyCode = args;
-    } else if (args is Map) {
-      final raw = args['keyCode'];
-      if (raw is int) {
-        keyCode = raw;
-      }
-    }
-
-    if (keyCode == null) {
-      return false;
-    }
-
-    final action = ButtonAction.fromKeyCode(keyCode);
-    if (action != null) {
-      _processAction(action);
-      return true;
-    }
-    return false;
   }
 
   /// 画面表示・ログ一覧を更新し、即座に音声読み上げを実行する
@@ -598,6 +680,7 @@ class _ButtonControlScreenState extends State<ButtonControlScreen> {
                   MaterialPageRoute(
                     builder: (context) => TrainingScreen(
                       ttsService: widget.ttsService,
+                      soundEffectService: widget.soundEffectService,
                     ),
                   ),
                 );
