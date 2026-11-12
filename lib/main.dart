@@ -40,9 +40,17 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'models/user_profile.dart';
+import 'screens/onboarding/onboarding_screen.dart';
+import 'screens/onboarding/welcome_screen.dart';
+import 'services/profile_storage_service.dart';
 import 'training_screen.dart';
 import 'tutorial_screen.dart';
 
+export 'models/user_profile.dart';
+export 'screens/onboarding/onboarding_screen.dart';
+export 'screens/onboarding/welcome_screen.dart';
+export 'services/profile_storage_service.dart';
 export 'training_screen.dart';
 export 'tutorial_screen.dart';
 
@@ -578,14 +586,92 @@ class KeyEventLog {
 // 5. UI アプリケーション & MethodChannel リスナー画面
 // ----------------------------------------------------------------------------
 
+/// 初回起動判定（オンボーディング完了済みか）に応じて画面をルーティングするディスパッチャ
+class AppEntryRouter extends StatefulWidget {
+  final ProfileStorageService storageService;
+  final TtsService ttsService;
+  final SoundEffectService? soundEffectService;
+
+  const AppEntryRouter({
+    super.key,
+    required this.storageService,
+    required this.ttsService,
+    this.soundEffectService,
+  });
+
+  @override
+  State<AppEntryRouter> createState() => _AppEntryRouterState();
+}
+
+class _AppEntryRouterState extends State<AppEntryRouter> {
+  late Future<bool> _onboardingFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _onboardingFuture = widget.storageService.isOnboardingCompleted();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<bool>(
+      future: _onboardingFuture,
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Scaffold(
+            backgroundColor: Color(0xFF121212),
+            body: Center(
+              child: CircularProgressIndicator(color: Colors.tealAccent),
+            ),
+          );
+        }
+
+        final isCompleted = snapshot.data ?? false;
+        if (isCompleted) {
+          return ButtonControlScreen(
+            ttsService: widget.ttsService,
+            soundEffectService: widget.soundEffectService,
+          );
+        }
+
+        return WelcomeScreen(
+          onStart: () {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (context) => OnboardingScreen(
+                  storageService: widget.storageService,
+                  onCompleted: (profile) {
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute(
+                        builder: (context) => TutorialScreen(
+                          ttsService: widget.ttsService,
+                          soundEffectService: widget.soundEffectService,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
 class ButtonControlApp extends StatelessWidget {
   final TtsService? ttsService;
   final SoundEffectService? soundEffectService;
+  final ProfileStorageService? profileStorageService;
+  final bool? skipOnboarding;
 
   const ButtonControlApp({
     super.key,
     this.ttsService,
     this.soundEffectService,
+    this.profileStorageService,
+    this.skipOnboarding,
   });
 
   @override
@@ -604,16 +690,30 @@ class ButtonControlApp extends StatelessWidget {
       ),
     );
 
+    final effectiveTts = ttsService ?? FlutterTtsService();
+
+    final Widget homeWidget;
+    if (skipOnboarding == true) {
+      homeWidget = ButtonControlScreen(
+        ttsService: effectiveTts,
+        soundEffectService: soundEffectService,
+      );
+    } else {
+      homeWidget = AppEntryRouter(
+        storageService:
+            profileStorageService ?? SharedPrefsProfileStorageService(),
+        ttsService: effectiveTts,
+        soundEffectService: soundEffectService,
+      );
+    }
+
     return MaterialApp(
       title: 'Button Control Test',
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.dark,
       theme: darkThemeData,
       darkTheme: darkThemeData,
-      home: ButtonControlScreen(
-        ttsService: ttsService ?? FlutterTtsService(),
-        soundEffectService: soundEffectService,
-      ),
+      home: homeWidget,
     );
   }
 }

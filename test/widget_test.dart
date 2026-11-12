@@ -191,7 +191,9 @@ void main() {
     });
 
     testWidgets('初期状態: 待機メッセージ・空ログ・クリアボタン無効が表示されること', (tester) async {
-      await tester.pumpWidget(ButtonControlApp(ttsService: fakeTts));
+      await tester.pumpWidget(
+        ButtonControlApp(ttsService: fakeTts, skipOnboarding: true),
+      );
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('waiting_prompt')), findsOneWidget);
@@ -206,7 +208,9 @@ void main() {
     });
 
     testWidgets('全6種類の対象キーコードで画面中央表示・TTS読み上げ・ログ追記が正しく動作すること', (tester) async {
-      await tester.pumpWidget(ButtonControlApp(ttsService: fakeTts));
+      await tester.pumpWidget(
+        ButtonControlApp(ttsService: fakeTts, skipOnboarding: true),
+      );
       await tester.pumpAndSettle();
 
       final cases = [
@@ -241,7 +245,9 @@ void main() {
     });
 
     testWidgets('対象外のキーコード（126, 127 等）は無視され UI・TTS が変化しないこと', (tester) async {
-      await tester.pumpWidget(ButtonControlApp(ttsService: fakeTts));
+      await tester.pumpWidget(
+        ButtonControlApp(ttsService: fakeTts, skipOnboarding: true),
+      );
       await tester.pumpAndSettle();
 
       expect(await sendNativeKeyEvent(tester, 126), isFalse);
@@ -255,7 +261,9 @@ void main() {
     });
 
     testWidgets('連続受信時のスクロールとログクリアが動作すること', (tester) async {
-      await tester.pumpWidget(ButtonControlApp(ttsService: fakeTts));
+      await tester.pumpWidget(
+        ButtonControlApp(ttsService: fakeTts, skipOnboarding: true),
+      );
       await tester.pumpAndSettle();
 
       for (var i = 0; i < 20; i++) {
@@ -291,6 +299,7 @@ void main() {
         ButtonControlApp(
           ttsService: fakeTts,
           soundEffectService: fakeSound,
+          skipOnboarding: true,
         ),
       );
       await tester.pumpAndSettle();
@@ -388,6 +397,7 @@ void main() {
           ButtonControlApp(
             ttsService: fakeTts,
             soundEffectService: fakeSound,
+            skipOnboarding: true,
           ),
         );
         await tester.pumpAndSettle();
