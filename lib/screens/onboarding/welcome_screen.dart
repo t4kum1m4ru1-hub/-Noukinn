@@ -1,6 +1,15 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../main.dart'
-    show ButtonAction, KeyEventChannelDispatcher, SoundEffectService, TtsService;
+    show
+        ButtonAction,
+        KeyEventChannelDispatcher,
+        SoundEffectService,
+        SpeechRecognitionService,
+        TtsService,
+        VoiceCommandInterpreter,
+        VoiceAction,
+        NextStepAction;
 import '../../theme/app_colors.dart';
 
 /// 初回起動時に最初に表示されるウェルカム画面
@@ -8,12 +17,14 @@ class WelcomeScreen extends StatefulWidget {
   final VoidCallback onStart;
   final TtsService? ttsService;
   final SoundEffectService? soundEffectService;
+  final SpeechRecognitionService? speechService;
 
   const WelcomeScreen({
     super.key,
     required this.onStart,
     this.ttsService,
     this.soundEffectService,
+    this.speechService,
   });
 
   @override
@@ -21,23 +32,69 @@ class WelcomeScreen extends StatefulWidget {
 }
 
 class _WelcomeScreenState extends State<WelcomeScreen> {
+  bool _isListening = false;
+  String? _recognizedText;
+
   @override
   void initState() {
     super.initState();
     KeyEventChannelDispatcher.instance.registerListener(_onKeyEvent);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      widget.ttsService?.speak('完全ハンズフリートレーニングへようこそ。設定をはじめます。');
+      _startVoicePromptFlow();
     });
   }
 
   @override
   void dispose() {
     KeyEventChannelDispatcher.instance.unregisterListener(_onKeyEvent);
+    widget.speechService?.stopListening();
     super.dispose();
   }
 
+  /// 音声案内読み上げ完了後、効果音を鳴らしてマイク待機を開始する
+  Future<void> _startVoicePromptFlow() async {
+    const text = '完全ハンズフリートレーニングへようこそ。設定をはじめます。';
+    if (widget.ttsService != null) {
+      await widget.ttsService!.speakAndWait(text);
+    }
+    if (!mounted) return;
+
+    // 音声案内終了後、合図の電子音を鳴らして音声聞き取りを開始
+    await widget.soundEffectService?.playBeep();
+    _startListening();
+  }
+
+  Future<void> _startListening() async {
+    if (widget.speechService == null) return;
+    setState(() {
+      _isListening = true;
+    });
+
+    await widget.speechService!.startListening(
+      onResult: (words) {
+        if (!mounted) return;
+        setState(() {
+          _recognizedText = words;
+        });
+
+        final action = VoiceCommandInterpreter.interpret(
+          step: 0,
+          speech: words,
+          currentAimCategory: AimCategory.bodyType,
+        );
+
+        if (action is NextStepAction) {
+          widget.speechService?.stopListening();
+          widget.soundEffectService?.playBeep();
+          widget.onStart();
+        }
+      },
+    );
+  }
+
   void _onKeyEvent(ButtonAction action) {
+    widget.speechService?.stopListening();
     widget.soundEffectService?.playBeep();
     widget.onStart();
   }
@@ -52,7 +109,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
               // 上部タイトル
               const Column(
                 children: [
@@ -86,8 +143,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               Center(
                 child: Container(
                   key: const Key('welcome_image_container'),
-                  width: 220,
-                  height: 220,
+                  width: 200,
+                  height: 200,
                   decoration: BoxDecoration(
                     color: AppColors.surfaceVariant,
                     shape: BoxShape.circle,
@@ -106,13 +163,13 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                       children: [
                         Icon(
                           Icons.fitness_center,
-                          size: 72,
+                          size: 64,
                           color: AppColors.tealAccent,
                         ),
-                        SizedBox(height: 12),
+                        SizedBox(height: 10),
                         Icon(
                           Icons.headphones,
-                          size: 40,
+                          size: 36,
                           color: AppColors.primaryAccent,
                         ),
                       ],
@@ -122,6 +179,46 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               ),
 
               const Spacer(flex: 1),
+
+              // 音声認識インジケーター（音声ガイド待機・受付中）
+              if (_isListening) ...[
+                Container(
+                  key: const Key('welcome_voice_indicator'),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.tealAccent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: AppColors.tealAccent.withValues(alpha: 0.4),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.mic,
+                        color: AppColors.tealAccent,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _recognizedText != null
+                            ? '「$_recognizedText」を認識中...'
+                            : '音声待機中:「スタート」「次へ」とお話しください',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.tealAccent,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
 
               // 下部説明テキスト
               Container(
@@ -143,19 +240,20 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                 ),
               ),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
 
               // はじめるボタン
               ElevatedButton(
                 key: const Key('welcome_start_button'),
                 onPressed: () {
+                  widget.speechService?.stopListening();
                   widget.soundEffectService?.playBeep();
                   widget.onStart();
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primaryAccent,
                   foregroundColor: AppColors.onPrimaryAccent,
-                  minimumSize: const Size.fromHeight(54),
+                  minimumSize: const Size.fromHeight(52),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -169,7 +267,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
             ],
           ),
         ),

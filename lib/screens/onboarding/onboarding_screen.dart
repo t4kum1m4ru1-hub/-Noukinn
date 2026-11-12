@@ -2,7 +2,25 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../../main.dart'
-    show ButtonAction, KeyEventChannelDispatcher, SoundEffectService, TtsService;
+    show
+        ButtonAction,
+        KeyEventChannelDispatcher,
+        SoundEffectService,
+        SpeechRecognitionService,
+        TtsService,
+        VoiceAction,
+        VoiceCommandInterpreter,
+        NextStepAction,
+        PreviousStepAction,
+        SetHeightAction,
+        AdjustHeightAction,
+        SetWeightAction,
+        AdjustWeightAction,
+        SelectAgeAction,
+        SelectGenderAction,
+        SelectAimCategoryAction,
+        SelectGoalAction,
+        UnknownVoiceAction;
 import '../../models/user_profile.dart';
 import '../../services/profile_storage_service.dart';
 import '../../theme/app_colors.dart';
@@ -14,6 +32,7 @@ class OnboardingScreen extends StatefulWidget {
   final void Function(UserProfile profile) onCompleted;
   final TtsService? ttsService;
   final SoundEffectService? soundEffectService;
+  final SpeechRecognitionService? speechService;
 
   const OnboardingScreen({
     super.key,
@@ -21,6 +40,7 @@ class OnboardingScreen extends StatefulWidget {
     required this.onCompleted,
     this.ttsService,
     this.soundEffectService,
+    this.speechService,
   });
 
   @override
@@ -95,6 +115,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Timer? _debounceTimer;
   static const Duration kDebounceDuration = Duration(milliseconds: 700);
 
+  // 音声認識状態
+  bool _isListening = false;
+  String? _lastRecognizedWords;
+
   @override
   void initState() {
     super.initState();
@@ -110,7 +134,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     // イヤホン・物理メディアキーリスナーの登録
     KeyEventChannelDispatcher.instance.registerListener(_handleButtonAction);
 
-    // 画面初期表示時の音声案内
+    // 画面初期表示時の音声案内フロー開始
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _speakStepIntro();
@@ -120,6 +144,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   void dispose() {
     KeyEventChannelDispatcher.instance.unregisterListener(_handleButtonAction);
+    widget.speechService?.stopListening();
     _debounceTimer?.cancel();
     _heightController.dispose();
     _weightController.dispose();
@@ -127,12 +152,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   // --------------------------------------------------------------------------
-  // 音声案内（TTS）＆ デバウンス制御
+  // 音声案内（TTS）＆ 音声認識（Speech-to-Text）連携
   // --------------------------------------------------------------------------
 
   /// 各ステップ突入時の音声案内
-  void _speakStepIntro() {
+  /// 読み上げが完了した後に、電子音を鳴らしてマイクの聞き取りを開始する
+  Future<void> _speakStepIntro() async {
     _debounceTimer?.cancel();
+    await widget.speechService?.stopListening();
+    if (mounted) {
+      setState(() {
+        _isListening = false;
+        _lastRecognizedWords = null;
+      });
+    }
+
     String intro;
     switch (_currentStep) {
       case 0:
@@ -159,8 +193,133 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       default:
         intro = '';
     }
-    if (intro.isNotEmpty) {
-      widget.ttsService?.speak(intro);
+
+    if (widget.ttsService != null && intro.isNotEmpty) {
+      await widget.ttsService!.speakAndWait(intro);
+    }
+    if (!mounted) return;
+
+    // 音声読み上げ終了後、合図の短い電子音を鳴らしてマイク入力待機を開始
+    await widget.soundEffectService?.playBeep();
+    _startListening();
+  }
+
+  /// 音声認識の開始
+  Future<void> _startListening() async {
+    if (widget.speechService == null) return;
+    setState(() {
+      _isListening = true;
+    });
+
+    await widget.speechService!.startListening(
+      onResult: (words) {
+        if (!mounted) return;
+        setState(() {
+          _lastRecognizedWords = words;
+        });
+        _handleVoiceSpeech(words);
+      },
+    );
+  }
+
+  /// 認識した音声コマンドを解析して実行
+  void _handleVoiceSpeech(String words) {
+    final action = VoiceCommandInterpreter.interpret(
+      step: _currentStep,
+      speech: words,
+      currentAimCategory: _selectedAimCategory,
+    );
+
+    switch (action) {
+      case NextStepAction():
+        widget.soundEffectService?.playBeep();
+        _goToNextStep();
+        break;
+
+      case PreviousStepAction():
+        widget.soundEffectService?.playBeep();
+        if (_currentStep > 0) {
+          _goToPreviousStep();
+        } else {
+          _speakStepIntro();
+        }
+        break;
+
+      case SetHeightAction(:final heightCm):
+        widget.soundEffectService?.playBeep();
+        setState(() {
+          _selectedHeight = heightCm;
+        });
+        if (_heightController.hasClients) {
+          _heightController.animateToItem(
+            heightCm - _minHeight,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+          );
+        }
+        _scheduleDebouncedSpeech(() => '$heightCmセンチ');
+        break;
+
+      case AdjustHeightAction(:final delta):
+        _handleVolume(isUp: delta > 0);
+        break;
+
+      case SetWeightAction(:final weightKg):
+        widget.soundEffectService?.playBeep();
+        setState(() {
+          _selectedWeight = weightKg;
+        });
+        if (_weightController.hasClients) {
+          _weightController.animateToItem(
+            (weightKg - _minWeight).toInt(),
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+          );
+        }
+        _scheduleDebouncedSpeech(() => '${weightKg.toInt()}キロ');
+        break;
+
+      case AdjustWeightAction(:final delta):
+        _handleVolume(isUp: delta > 0);
+        break;
+
+      case SelectAgeAction(:final ageGroup):
+        widget.soundEffectService?.playBeep();
+        setState(() {
+          _selectedAgeGroup = ageGroup;
+        });
+        _scheduleDebouncedSpeech(() => ageGroup);
+        break;
+
+      case SelectGenderAction(:final gender):
+        widget.soundEffectService?.playBeep();
+        setState(() {
+          _selectedGender = gender;
+        });
+        _scheduleDebouncedSpeech(() => gender);
+        break;
+
+      case SelectAimCategoryAction(:final category):
+        widget.soundEffectService?.playBeep();
+        setState(() {
+          _selectedAimCategory = category;
+          _selectedGoal = category == AimCategory.bodyType
+              ? _bodyTypeOptions.first
+              : _sportsOptions.first;
+        });
+        _scheduleDebouncedSpeech(() => category.label);
+        break;
+
+      case SelectGoalAction(:final goal):
+        widget.soundEffectService?.playBeep();
+        setState(() {
+          _selectedGoal = goal;
+        });
+        _scheduleDebouncedSpeech(() => _cleanSpeechText(goal));
+        break;
+
+      case UnknownVoiceAction():
+        break;
     }
   }
 
@@ -351,6 +510,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   Future<void> _finishOnboarding() async {
     _debounceTimer?.cancel();
+    await widget.speechService?.stopListening();
     final profile = UserProfile(
       heightCm: _selectedHeight,
       weightKg: _selectedWeight,
@@ -396,14 +556,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
+          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // 1. 画面上部：質問・トピック
               _buildTopHeader(),
 
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
+
+              // 音声認識状態バッジ
+              _buildVoiceInputBadge(),
+
+              const SizedBox(height: 8),
 
               // 2. 画面中央：イラスト・画像（プレースホルダー）
               Expanded(
@@ -413,7 +578,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ),
               ),
 
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
 
               // 3. 画面下部：選択肢（ドラムロールまたはボタングループ）
               Expanded(
@@ -429,12 +594,58 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ),
               ),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
 
               // 画面最下部：ナビゲーションボタン（戻る・次へ）
               _buildBottomNavigation(),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  /// 音声認識バッジ
+  Widget _buildVoiceInputBadge() {
+    return Center(
+      child: AnimatedContainer(
+        key: const Key('voice_input_indicator'),
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: _isListening
+              ? AppColors.tealAccent.withValues(alpha: 0.12)
+              : AppColors.surfaceVariant,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: _isListening
+                ? AppColors.tealAccent.withValues(alpha: 0.5)
+                : AppColors.border,
+            width: 1.2,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              _isListening ? Icons.mic : Icons.mic_none,
+              color: _isListening ? AppColors.tealAccent : AppColors.textTertiary,
+              size: 16,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              _lastRecognizedWords != null
+                  ? '「$_lastRecognizedWords」を認識'
+                  : (_isListening ? '🎙️ お話しください（声で操作可能）' : '音声待機中'),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: _isListening
+                    ? AppColors.tealAccent
+                    : AppColors.textSecondary,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -450,31 +661,31 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     switch (_currentStep) {
       case 0:
         title = '身長を教えてください';
-        subtitle = 'ドラムロールを上下に回して選択してください';
+        subtitle = 'ドラムロール操作または声で「172センチ」と話してください';
         break;
       case 1:
         title = '体重を教えてください';
-        subtitle = 'ドラムロールを上下に回して選択してください';
+        subtitle = 'ドラムロール操作または声で「65キロ」と話してください';
         break;
       case 2:
         title = '年齢を教えてください';
-        subtitle = '当てはまる年代を選択してください';
+        subtitle = '選択または声で「20代」「30代」と話してください';
         break;
       case 3:
         title = '性別を教えてください';
-        subtitle = 'トレーニング案内に活用します';
+        subtitle = '選択または声で「男性」「女性」と話してください';
         break;
       case 4:
         title = '目標の設定基準';
-        subtitle = 'どちらの基準で目的を設定しますか？';
+        subtitle = '声で「体型」「スポーツ」とお話しください';
         break;
       case 5:
         if (_selectedAimCategory == AimCategory.bodyType) {
           title = '目指す体型を教えてください';
-          subtitle = 'あなたの理想のゴールを選択してください';
+          subtitle = '声で「細マッチョ」「バルクアップ」等とお話しください';
         } else {
           title = '行っているスポーツを教えてください';
-          subtitle = 'トレーニングを活かしたい競技を選択してください';
+          subtitle = '声で「サッカー」「ランニング」等とお話しください';
         }
         break;
       default:
@@ -488,18 +699,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           title,
           key: const Key('question_title'),
           style: const TextStyle(
-            fontSize: 22,
+            fontSize: 21,
             fontWeight: FontWeight.bold,
             color: AppColors.textPrimary,
           ),
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 4),
         Text(
           subtitle,
           key: const Key('question_subtitle'),
           style: const TextStyle(
-            fontSize: 13,
+            fontSize: 12,
             color: AppColors.textSecondary,
           ),
           textAlign: TextAlign.center,

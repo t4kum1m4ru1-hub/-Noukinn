@@ -4,6 +4,10 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>ハンズフリー操作による音声指示の認識に使用します</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>ハンズフリー操作による音声指示を聞き取るためにマイクを使用します</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>

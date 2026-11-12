@@ -44,6 +44,8 @@ import 'models/user_profile.dart';
 import 'screens/onboarding/onboarding_screen.dart';
 import 'screens/onboarding/welcome_screen.dart';
 import 'services/profile_storage_service.dart';
+import 'services/speech_recognition_service.dart';
+import 'services/voice_command_interpreter.dart';
 import 'training_screen.dart';
 import 'tutorial_screen.dart';
 
@@ -51,6 +53,8 @@ export 'models/user_profile.dart';
 export 'screens/onboarding/onboarding_screen.dart';
 export 'screens/onboarding/welcome_screen.dart';
 export 'services/profile_storage_service.dart';
+export 'services/speech_recognition_service.dart';
+export 'services/voice_command_interpreter.dart';
 export 'training_screen.dart';
 export 'tutorial_screen.dart';
 
@@ -218,6 +222,7 @@ class FakeSoundEffectService implements SoundEffectService {
 abstract class TtsService {
   Future<void> initialize();
   Future<void> speak(String text);
+  Future<void> speakAndWait(String text);
   Future<void> stop();
   Future<void> setVolume(double volume) async {}
 }
@@ -424,6 +429,11 @@ class FakeTtsService implements TtsService {
   }
 
   @override
+  Future<void> speakAndWait(String text) async {
+    await speak(text);
+  }
+
+  @override
   Future<void> stop() async {
     stopCallCount++;
   }
@@ -591,12 +601,14 @@ class AppEntryRouter extends StatefulWidget {
   final ProfileStorageService storageService;
   final TtsService ttsService;
   final SoundEffectService? soundEffectService;
+  final SpeechRecognitionService? speechService;
 
   const AppEntryRouter({
     super.key,
     required this.storageService,
     required this.ttsService,
     this.soundEffectService,
+    this.speechService,
   });
 
   @override
@@ -637,6 +649,7 @@ class _AppEntryRouterState extends State<AppEntryRouter> {
         return WelcomeScreen(
           ttsService: widget.ttsService,
           soundEffectService: widget.soundEffectService,
+          speechService: widget.speechService,
           onStart: () {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(
@@ -644,6 +657,7 @@ class _AppEntryRouterState extends State<AppEntryRouter> {
                   storageService: widget.storageService,
                   ttsService: widget.ttsService,
                   soundEffectService: widget.soundEffectService,
+                  speechService: widget.speechService,
                   onCompleted: (profile) {
                     Navigator.of(context).pushReplacement(
                       MaterialPageRoute(
@@ -668,6 +682,7 @@ class ButtonControlApp extends StatelessWidget {
   final TtsService? ttsService;
   final SoundEffectService? soundEffectService;
   final ProfileStorageService? profileStorageService;
+  final SpeechRecognitionService? speechService;
   final bool? skipOnboarding;
 
   const ButtonControlApp({
@@ -675,6 +690,7 @@ class ButtonControlApp extends StatelessWidget {
     this.ttsService,
     this.soundEffectService,
     this.profileStorageService,
+    this.speechService,
     this.skipOnboarding,
   });
 
@@ -708,6 +724,7 @@ class ButtonControlApp extends StatelessWidget {
             profileStorageService ?? SharedPrefsProfileStorageService(),
         ttsService: effectiveTts,
         soundEffectService: soundEffectService,
+        speechService: speechService ?? PlatformSpeechRecognitionService(),
       );
     }
 
