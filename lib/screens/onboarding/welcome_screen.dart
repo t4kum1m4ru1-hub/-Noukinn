@@ -1,14 +1,46 @@
 import 'package:flutter/material.dart';
+import '../../main.dart'
+    show ButtonAction, KeyEventChannelDispatcher, SoundEffectService, TtsService;
 import '../../theme/app_colors.dart';
 
 /// 初回起動時に最初に表示されるウェルカム画面
-class WelcomeScreen extends StatelessWidget {
+class WelcomeScreen extends StatefulWidget {
   final VoidCallback onStart;
+  final TtsService? ttsService;
+  final SoundEffectService? soundEffectService;
 
   const WelcomeScreen({
     super.key,
     required this.onStart,
+    this.ttsService,
+    this.soundEffectService,
   });
+
+  @override
+  State<WelcomeScreen> createState() => _WelcomeScreenState();
+}
+
+class _WelcomeScreenState extends State<WelcomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    KeyEventChannelDispatcher.instance.registerListener(_onKeyEvent);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      widget.ttsService?.speak('完全ハンズフリートレーニングへようこそ。設定をはじめます。');
+    });
+  }
+
+  @override
+  void dispose() {
+    KeyEventChannelDispatcher.instance.unregisterListener(_onKeyEvent);
+    super.dispose();
+  }
+
+  void _onKeyEvent(ButtonAction action) {
+    widget.soundEffectService?.playBeep();
+    widget.onStart();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -116,7 +148,10 @@ class WelcomeScreen extends StatelessWidget {
               // はじめるボタン
               ElevatedButton(
                 key: const Key('welcome_start_button'),
-                onPressed: onStart,
+                onPressed: () {
+                  widget.soundEffectService?.playBeep();
+                  widget.onStart();
+                },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primaryAccent,
                   foregroundColor: AppColors.onPrimaryAccent,

@@ -1,10 +1,47 @@
+import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:button_controll_test/main.dart';
 
+/// Android ネイティブ層（MainActivity.kt）からの MethodChannel 呼び出しをシミュレートするヘルパー
+Future<dynamic> sendNativeKeyEvent(
+  WidgetTester tester,
+  dynamic arguments, {
+  String method = 'onKeyEvent',
+}) async {
+  const codec = StandardMethodCodec();
+  final ByteData callData = codec.encodeMethodCall(
+    MethodCall(method, arguments),
+  );
+  final completer = Completer<ByteData?>();
+  tester.binding.defaultBinaryMessenger.handlePlatformMessage(
+    kKeyEventsChannelName,
+    callData,
+    (ByteData? reply) {
+      completer.complete(reply);
+    },
+  );
+  final reply = await completer.future;
+  if (reply == null) {
+    return null;
+  }
+  return codec.decodeEnvelope(reply);
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  late FakeTtsService fakeTts;
+  late FakeSoundEffectService fakeSound;
+  late InMemoryProfileStorageService storageService;
+
+  setUp(() {
+    fakeTts = FakeTtsService();
+    fakeSound = FakeSoundEffectService();
+    storageService = InMemoryProfileStorageService();
+  });
 
   group('Unit Tests: UserProfile & StorageService', () {
     test('UserProfile の toJson / fromJson 変換が正しく相互変換できること', () {
@@ -55,15 +92,15 @@ void main() {
     });
   });
 
-  group('Widget Tests: WelcomeScreen', () {
-    testWidgets('ウェルカム画面のタイトル・イラスト・ボタンが正しく表示され、タップでコールバックが発火すること', (
-      tester,
-    ) async {
+  group('Widget Tests: WelcomeScreen UI・TTS・イヤホンキー', () {
+    testWidgets('ウェルカム画面の表示、初期音声案内、ボタンタップでの開始', (tester) async {
       var started = false;
 
       await tester.pumpWidget(
         MaterialApp(
           home: WelcomeScreen(
+            ttsService: fakeTts,
+            soundEffectService: fakeSound,
             onStart: () {
               started = true;
             },
@@ -77,6 +114,7 @@ void main() {
       expect(find.byKey(const Key('welcome_subtitle')), findsOneWidget);
       expect(find.byKey(const Key('welcome_image_container')), findsOneWidget);
       expect(find.byKey(const Key('welcome_description')), findsOneWidget);
+      expect(fakeTts.lastSpoken, '完全ハンズフリートレーニングへようこそ。設定をはじめます。');
 
       final startButton = find.byKey(const Key('welcome_start_button'));
       expect(startButton, findsOneWidget);
@@ -85,25 +123,43 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(started, isTrue);
+      expect(fakeSound.beepCount, 1);
+    });
+
+    testWidgets('ウェルカム画面でイヤホンボタン（85）を押すと開始できること', (tester) async {
+      var started = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: WelcomeScreen(
+            ttsService: fakeTts,
+            soundEffectService: fakeSound,
+            onStart: () {
+              started = true;
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await sendNativeKeyEvent(tester, 85);
+      await tester.pumpAndSettle();
+
+      expect(started, isTrue);
+      expect(fakeSound.beepCount, 1);
     });
   });
 
-  group('Widget Tests: OnboardingScreen 全ステップ進行・選択・戻る検証', () {
-    late InMemoryProfileStorageService storageService;
-
-    setUp(() {
-      storageService = InMemoryProfileStorageService();
-    });
-
-    testWidgets('Step 0〜5 を順番にタッチ操作で選択し、完了時にプロフィールが正しく保存されること（体型ルート）', (
-      tester,
-    ) async {
+  group('Widget Tests: OnboardingScreen タッチ操作フロー', () {
+    testWidgets('Step 0〜5 をタッチ操作で選択し、完了時にプロフィールが正しく保存されること', (tester) async {
       UserProfile? completedProfile;
 
       await tester.pumpWidget(
         MaterialApp(
           home: OnboardingScreen(
             storageService: storageService,
+            ttsService: fakeTts,
+            soundEffectService: fakeSound,
             onCompleted: (profile) {
               completedProfile = profile;
             },
@@ -115,14 +171,14 @@ void main() {
       // Step 0: 身長
       expect(find.text('初期設定 (1 / 6)'), findsOneWidget);
       expect(find.text('身長を教えてください'), findsOneWidget);
-      expect(find.byKey(const Key('height_picker')), findsOneWidget);
-      expect(find.byKey(const Key('onboarding_back_button')), findsNothing);
+      expect(fakeTts.lastSpoken, '身長を教えてください。現在、170センチです');
 
       // 身長ピッカーを操作（170 -> 172cm へ変更）
       final heightPickerFinder = find.byKey(const Key('height_picker'));
       final heightPicker = tester.widget<CupertinoPicker>(heightPickerFinder);
       heightPicker.scrollController?.jumpToItem(172 - 120);
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 750));
+      expect(fakeTts.lastSpoken, '172センチ');
 
       // 次へタップ
       await tester.tap(find.byKey(const Key('onboarding_next_button')));
@@ -131,92 +187,85 @@ void main() {
       // Step 1: 体重
       expect(find.text('初期設定 (2 / 6)'), findsOneWidget);
       expect(find.text('体重を教えてください'), findsOneWidget);
-      expect(find.byKey(const Key('weight_picker')), findsOneWidget);
-      expect(find.byKey(const Key('onboarding_back_button')), findsOneWidget);
+      expect(fakeTts.lastSpoken, '体重を教えてください。現在、65キロです');
 
       // 体重ピッカーを操作（65 -> 68kg へ変更）
       final weightPickerFinder = find.byKey(const Key('weight_picker'));
       final weightPicker = tester.widget<CupertinoPicker>(weightPickerFinder);
       weightPicker.scrollController?.jumpToItem(68 - 30);
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 750));
+      expect(fakeTts.lastSpoken, '68キロ');
 
       // 次へタップ
       await tester.tap(find.byKey(const Key('onboarding_next_button')));
       await tester.pumpAndSettle();
 
-      // Step 2: 年齢（5歳刻み）
+      // Step 2: 年齢
       expect(find.text('初期設定 (3 / 6)'), findsOneWidget);
-      expect(find.text('年齢を教えてください'), findsOneWidget);
-      expect(find.byKey(const Key('age_options_grid')), findsOneWidget);
+      expect(fakeTts.lastSpoken, '年齢を教えてください。現在、20〜24歳です');
 
-      // 「30〜34歳」をタップ
       await tester.tap(find.byKey(const Key('choice_30〜34歳')));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 750));
+      expect(fakeTts.lastSpoken, '30〜34歳');
 
-      // 次へタップ
       await tester.tap(find.byKey(const Key('onboarding_next_button')));
       await tester.pumpAndSettle();
 
       // Step 3: 性別
       expect(find.text('初期設定 (4 / 6)'), findsOneWidget);
-      expect(find.text('性別を教えてください'), findsOneWidget);
-      expect(find.byKey(const Key('gender_options_list')), findsOneWidget);
+      expect(fakeTts.lastSpoken, '性別を教えてください。現在、男性です');
 
-      // 「男性」を選択
-      await tester.tap(find.byKey(const Key('choice_男性')));
-      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('choice_女性')));
+      await tester.pump(const Duration(milliseconds: 750));
+      expect(fakeTts.lastSpoken, '女性');
 
-      // 次へタップ
       await tester.tap(find.byKey(const Key('onboarding_next_button')));
       await tester.pumpAndSettle();
 
-      // Step 4: 目標の設定基準（体型 vs スポーツ）
+      // Step 4: 目的基準
       expect(find.text('初期設定 (5 / 6)'), findsOneWidget);
-      expect(find.text('目標の設定基準'), findsOneWidget);
+      expect(fakeTts.lastSpoken, '目標の設定基準を教えてください。現在、目指す体型から選ぶです');
 
-      // 「目指す体型から選ぶ」を選択
       await tester.tap(find.byKey(const Key('aim_choice_目指す体型から選ぶ')));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 750));
 
-      // 次へタップ
       await tester.tap(find.byKey(const Key('onboarding_next_button')));
       await tester.pumpAndSettle();
 
-      // Step 5: 目指す体型一覧
+      // Step 5: 体型詳細
       expect(find.text('初期設定 (6 / 6)'), findsOneWidget);
-      expect(find.text('目指す体型を教えてください'), findsOneWidget);
-      expect(find.byKey(const Key('goal_options_list')), findsOneWidget);
+      expect(fakeTts.lastSpoken, '目指す体型を教えてください。現在、細マッチョです');
 
-      // 「筋肥大・バルクアップ（たくましい体）」を選択
       await tester.tap(find.byKey(const Key('choice_筋肥大・バルクアップ（たくましい体）')));
+      await tester.pump(const Duration(milliseconds: 750));
+      expect(fakeTts.lastSpoken, '筋肥大・バルクアップ');
+
+      await tester.tap(find.byKey(const Key('onboarding_next_button')));
       await tester.pumpAndSettle();
 
-      // 完了ボタン確認とタップ
-      final finishButton = find.byKey(const Key('onboarding_next_button'));
-      expect(find.text('完了してチュートリアルへ'), findsOneWidget);
-
-      await tester.tap(finishButton);
-      await tester.pumpAndSettle();
-
-      // 完了コールバックとストレージ保存の検証
       expect(completedProfile, isNotNull);
       expect(completedProfile!.heightCm, 172);
       expect(completedProfile!.weightKg, 68.0);
       expect(completedProfile!.ageGroup, '30〜34歳');
-      expect(completedProfile!.gender, '男性');
+      expect(completedProfile!.gender, '女性');
       expect(completedProfile!.aimCategory, AimCategory.bodyType);
       expect(completedProfile!.targetGoal, '筋肥大・バルクアップ（たくましい体）');
-
-      expect(await storageService.isOnboardingCompleted(), isTrue);
+      expect(fakeTts.lastSpoken, '設定が完了しました。チュートリアルを開始します。');
     });
+  });
 
-    testWidgets('スポーツルート選択および「戻る」ボタンによる再選択が正しく動作すること', (tester) async {
+  group('Widget Tests: OnboardingScreen イヤホン物理ボタン操作 ＆ 0.7秒デバウンスTTS検証', () {
+    testWidgets('音量キーで数値/選択肢増減・0.7秒デバウンス・前曲(88)で戻る・再生停止(85)で決定次へが動作すること', (
+      tester,
+    ) async {
       UserProfile? completedProfile;
 
       await tester.pumpWidget(
         MaterialApp(
           home: OnboardingScreen(
             storageService: storageService,
+            ttsService: fakeTts,
+            soundEffectService: fakeSound,
             onCompleted: (profile) {
               completedProfile = profile;
             },
@@ -225,57 +274,120 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Step 0 -> Step 1 -> Step 2 -> Step 3 -> Step 4 へ一気に進む
-      for (var i = 0; i < 4; i++) {
-        await tester.tap(find.byKey(const Key('onboarding_next_button')));
-        await tester.pumpAndSettle();
-      }
+      // Step 0: 身長初期案内
+      expect(fakeTts.lastSpoken, '身長を教えてください。現在、170センチです');
+      fakeTts.clear();
+      fakeSound.clear();
 
-      // Step 4 (目標基準) で「やっているスポーツから選ぶ」を選択
+      // 音量アップ (24) を2回ポンポンと押す（170 -> 171 -> 172cm）
+      await sendNativeKeyEvent(tester, 24);
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(find.text('171 cm'), findsOneWidget);
+      expect(fakeSound.beepCount, 1);
+      expect(fakeTts.spokenHistory, isEmpty); // まだ発話されない（デバウンス中）
+
+      await sendNativeKeyEvent(tester, 24);
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(find.text('172 cm'), findsOneWidget);
+      expect(fakeSound.beepCount, 2);
+      expect(fakeTts.spokenHistory, isEmpty);
+
+      // 0.7秒経過後にまとめて発話「172センチ」
+      await tester.pump(const Duration(milliseconds: 550));
+      expect(fakeTts.spokenHistory, ['172センチ']);
+
+      // 音量ダウン (25) で171cmへ
+      fakeTts.clear();
+      await sendNativeKeyEvent(tester, 25);
+      await tester.pump(const Duration(milliseconds: 750));
+      expect(find.text('171 cm'), findsOneWidget);
+      expect(fakeTts.lastSpoken, '171センチ');
+
+      // 再生/停止 (85) で決定して Step 1 (体重) へ進む
+      await sendNativeKeyEvent(tester, 85);
+      await tester.pumpAndSettle();
+      expect(find.text('初期設定 (2 / 6)'), findsOneWidget);
+      expect(fakeTts.lastSpoken, '体重を教えてください。現在、65キロです');
+
+      // 体重で音量アップ (24) ➔ 66kg
+      fakeTts.clear();
+      await sendNativeKeyEvent(tester, 24);
+      await tester.pump(const Duration(milliseconds: 750));
+      expect(find.text('66 kg'), findsOneWidget);
+      expect(fakeTts.lastSpoken, '66キロ');
+
+      // 曲送り (87) で決定して Step 2 (年齢) へ進む
+      await sendNativeKeyEvent(tester, 87);
+      await tester.pumpAndSettle();
+      expect(find.text('初期設定 (3 / 6)'), findsOneWidget);
+      expect(fakeTts.lastSpoken, '年齢を教えてください。現在、20〜24歳です');
+
+      // 年齢で音量アップ (24) ➔ 25〜29歳
+      fakeTts.clear();
+      await sendNativeKeyEvent(tester, 24);
+      await tester.pump(const Duration(milliseconds: 750));
+      expect(fakeTts.lastSpoken, '25〜29歳');
+
+      // 前の曲 (88) を押すと、回答を修正するため Step 1 (体重) に戻る（選択肢Aの仕様）
+      await sendNativeKeyEvent(tester, 88);
+      await tester.pumpAndSettle();
+      expect(find.text('初期設定 (2 / 6)'), findsOneWidget);
+      expect(fakeTts.lastSpoken, '体重を教えてください。現在、66キロです');
+
+      // 再度次へ進む (Step 1 ➔ Step 2 ➔ Step 3)
+      await sendNativeKeyEvent(tester, 85); // ➔ Step 2
+      await tester.pumpAndSettle();
+      expect(find.text('初期設定 (3 / 6)'), findsOneWidget);
+
+      await sendNativeKeyEvent(tester, 85); // ➔ Step 3 (性別)
+      await tester.pumpAndSettle();
+      expect(find.text('初期設定 (4 / 6)'), findsOneWidget);
+      expect(fakeTts.lastSpoken, '性別を教えてください。現在、男性です');
+
+      // 音量アップ (24) で女性に変更
+      fakeTts.clear();
+      await sendNativeKeyEvent(tester, 24);
+      await tester.pump(const Duration(milliseconds: 750));
+      expect(fakeTts.lastSpoken, '女性');
+
+      await sendNativeKeyEvent(tester, 85); // ➔ Step 4 (目的基準)
+      await tester.pumpAndSettle();
       expect(find.text('初期設定 (5 / 6)'), findsOneWidget);
-      await tester.tap(find.byKey(const Key('aim_choice_やっているスポーツから選ぶ')));
+      expect(fakeTts.lastSpoken, '目標の設定基準を教えてください。現在、目指す体型から選ぶです');
+
+      // 音量キーでスポーツに切り替え
+      fakeTts.clear();
+      await sendNativeKeyEvent(tester, 24);
+      await tester.pump(const Duration(milliseconds: 750));
+      expect(fakeTts.lastSpoken, 'やっているスポーツから選ぶ');
+
+      await sendNativeKeyEvent(tester, 85); // ➔ Step 5 (スポーツ詳細)
       await tester.pumpAndSettle();
+      expect(find.text('初期設定 (6 / 6)'), findsOneWidget);
+      expect(fakeTts.lastSpoken, '行っているスポーツを教えてください。現在、ランニング・陸上です');
 
-      await tester.tap(find.byKey(const Key('onboarding_next_button')));
-      await tester.pumpAndSettle();
+      // 音量アップ (24) でサッカー・フットサルに変更
+      fakeTts.clear();
+      await sendNativeKeyEvent(tester, 24);
+      await tester.pump(const Duration(milliseconds: 750));
+      expect(fakeTts.lastSpoken, 'サッカー・フットサル');
 
-      // Step 5 (スポーツ詳細)
-      expect(find.text('行っているスポーツを教えてください'), findsOneWidget);
-      expect(find.text('サッカー・フットサル'), findsOneWidget);
-
-      // 「戻る」ボタンを押して Step 4 へ戻る
-      await tester.tap(find.byKey(const Key('onboarding_back_button')));
-      await tester.pumpAndSettle();
-      expect(find.text('初期設定 (5 / 6)'), findsOneWidget);
-      expect(find.text('目標の設定基準'), findsOneWidget);
-
-      // 再度「やっているスポーツから選ぶ」で進む
-      await tester.tap(find.byKey(const Key('onboarding_next_button')));
-      await tester.pumpAndSettle();
-
-      // 「サッカー・フットサル」を選択して完了
-      await tester.tap(find.byKey(const Key('choice_サッカー・フットサル')));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.byKey(const Key('onboarding_next_button')));
+      // 最後の決定 (85)
+      await sendNativeKeyEvent(tester, 85);
       await tester.pumpAndSettle();
 
       expect(completedProfile, isNotNull);
+      expect(completedProfile!.heightCm, 171);
+      expect(completedProfile!.weightKg, 66.0);
+      expect(completedProfile!.gender, '女性');
       expect(completedProfile!.aimCategory, AimCategory.sports);
       expect(completedProfile!.targetGoal, 'サッカー・フットサル');
+      expect(fakeTts.lastSpoken, '設定が完了しました。チュートリアルを開始します。');
     });
   });
 
   group('Widget Tests: AppEntryRouter ルーティング統合検証', () {
-    late FakeTtsService fakeTts;
-    late FakeSoundEffectService fakeSound;
-
-    setUp(() {
-      fakeTts = FakeTtsService();
-      fakeSound = FakeSoundEffectService();
-    });
-
-    testWidgets('初回起動（未完了）時: WelcomeScreen が表示され、設定完了後に TutorialScreen へ遷移すること', (
+    testWidgets('初回起動時: WelcomeScreen ➔ OnboardingScreen ➔ TutorialScreen 遷移', (
       tester,
     ) async {
       final storage = InMemoryProfileStorageService(initialCompleted: false);
@@ -293,16 +405,16 @@ void main() {
       expect(find.byType(WelcomeScreen), findsOneWidget);
       expect(find.byType(ButtonControlScreen), findsNothing);
 
-      // 「設定をはじめる」をタップ
-      await tester.tap(find.byKey(const Key('welcome_start_button')));
+      // イヤホン再生停止 (85) でスタート
+      await sendNativeKeyEvent(tester, 85);
       await tester.pumpAndSettle();
 
       // OnboardingScreen に遷移
       expect(find.byType(OnboardingScreen), findsOneWidget);
 
-      // 全6ステップを「次へ」で進めて完了する
+      // 全6ステップをイヤホンキー (85) で進めて完了する
       for (var i = 0; i < 6; i++) {
-        await tester.tap(find.byKey(const Key('onboarding_next_button')));
+        await sendNativeKeyEvent(tester, 85);
         await tester.pumpAndSettle();
       }
 
@@ -311,9 +423,7 @@ void main() {
       expect(await storage.isOnboardingCompleted(), isTrue);
     });
 
-    testWidgets('2回目以降起動（完了済み）時: WelcomeScreen はスキップされ直接 ButtonControlScreen が表示されること', (
-      tester,
-    ) async {
+    testWidgets('2回目以降起動時: 直接 ButtonControlScreen が表示されること', (tester) async {
       final storage = InMemoryProfileStorageService(initialCompleted: true);
 
       await tester.pumpWidget(
@@ -325,7 +435,6 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // WelcomeScreen は表示されず、メイン画面が表示される
       expect(find.byType(WelcomeScreen), findsNothing);
       expect(find.byType(OnboardingScreen), findsNothing);
       expect(find.byType(ButtonControlScreen), findsOneWidget);

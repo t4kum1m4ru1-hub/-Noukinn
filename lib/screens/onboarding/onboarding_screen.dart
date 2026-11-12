@@ -1,5 +1,8 @@
+import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import '../../main.dart'
+    show ButtonAction, KeyEventChannelDispatcher, SoundEffectService, TtsService;
 import '../../models/user_profile.dart';
 import '../../services/profile_storage_service.dart';
 import '../../theme/app_colors.dart';
@@ -9,11 +12,15 @@ import 'question_placeholder_image.dart';
 class OnboardingScreen extends StatefulWidget {
   final ProfileStorageService storageService;
   final void Function(UserProfile profile) onCompleted;
+  final TtsService? ttsService;
+  final SoundEffectService? soundEffectService;
 
   const OnboardingScreen({
     super.key,
     required this.storageService,
     required this.onCompleted,
+    this.ttsService,
+    this.soundEffectService,
   });
 
   @override
@@ -84,6 +91,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   String _selectedGoal = '細マッチョ（引き締め＆筋力）';
 
+  // 0.7秒デバウンスTTS発話タイマー
+  Timer? _debounceTimer;
+  static const Duration kDebounceDuration = Duration(milliseconds: 700);
+
   @override
   void initState() {
     super.initState();
@@ -95,20 +106,221 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     _weightController = FixedExtentScrollController(
       initialItem: (_selectedWeight - _minWeight).toInt(),
     );
+
+    // イヤホン・物理メディアキーリスナーの登録
+    KeyEventChannelDispatcher.instance.registerListener(_handleButtonAction);
+
+    // 画面初期表示時の音声案内
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _speakStepIntro();
+    });
   }
 
   @override
   void dispose() {
+    KeyEventChannelDispatcher.instance.unregisterListener(_handleButtonAction);
+    _debounceTimer?.cancel();
     _heightController.dispose();
     _weightController.dispose();
     super.dispose();
   }
 
+  // --------------------------------------------------------------------------
+  // 音声案内（TTS）＆ デバウンス制御
+  // --------------------------------------------------------------------------
+
+  /// 各ステップ突入時の音声案内
+  void _speakStepIntro() {
+    _debounceTimer?.cancel();
+    String intro;
+    switch (_currentStep) {
+      case 0:
+        intro = '身長を教えてください。現在、$_selectedHeightセンチです';
+        break;
+      case 1:
+        intro = '体重を教えてください。現在、${_selectedWeight.toInt()}キロです';
+        break;
+      case 2:
+        intro = '年齢を教えてください。現在、$_selectedAgeGroupです';
+        break;
+      case 3:
+        intro = '性別を教えてください。現在、$_selectedGenderです';
+        break;
+      case 4:
+        intro = '目標の設定基準を教えてください。現在、${_selectedAimCategory.label}です';
+        break;
+      case 5:
+        final goal = _cleanSpeechText(_selectedGoal);
+        intro = _selectedAimCategory == AimCategory.bodyType
+            ? '目指す体型を教えてください。現在、$goalです'
+            : '行っているスポーツを教えてください。現在、$goalです';
+        break;
+      default:
+        intro = '';
+    }
+    if (intro.isNotEmpty) {
+      widget.ttsService?.speak(intro);
+    }
+  }
+
+  /// 0.7秒操作が止まった後に読み上げるデバウンス処理
+  void _scheduleDebouncedSpeech(String Function() speechBuilder) {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(kDebounceDuration, () {
+      if (!mounted) return;
+      widget.ttsService?.speak(speechBuilder());
+    });
+  }
+
+  /// 括弧書きを省いた自然な読み上げ文字列
+  String _cleanSpeechText(String raw) {
+    final idx = raw.indexOf('（');
+    if (idx != -1) {
+      return raw.substring(0, idx).trim();
+    }
+    return raw;
+  }
+
+  // --------------------------------------------------------------------------
+  // イヤホン・キーイベントハンドラ
+  // --------------------------------------------------------------------------
+  void _handleButtonAction(ButtonAction action) {
+    switch (action) {
+      case ButtonAction.volumeUp:
+        _handleVolume(isUp: true);
+        break;
+      case ButtonAction.volumeDown:
+        _handleVolume(isUp: false);
+        break;
+      case ButtonAction.mediaPlayPause:
+      case ButtonAction.headsetHook:
+        widget.soundEffectService?.playBeep();
+        _goToNextStep();
+        break;
+      case ButtonAction.mediaNext:
+        widget.soundEffectService?.playBeep();
+        _goToNextStep();
+        break;
+      case ButtonAction.mediaPrevious:
+        widget.soundEffectService?.playBeep();
+        if (_currentStep > 0) {
+          _goToPreviousStep();
+        } else {
+          _speakStepIntro();
+        }
+        break;
+    }
+  }
+
+  /// 音量ボタンによる項目移動・数値変更
+  void _handleVolume({required bool isUp}) {
+    widget.soundEffectService?.playBeep();
+
+    switch (_currentStep) {
+      case 0:
+        // 身長（ドラムロール）
+        final delta = isUp ? 1 : -1;
+        final next = (_selectedHeight + delta).clamp(_minHeight, _maxHeight);
+        if (next != _selectedHeight) {
+          setState(() {
+            _selectedHeight = next;
+          });
+          if (_heightController.hasClients) {
+            _heightController.animateToItem(
+              next - _minHeight,
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOut,
+            );
+          }
+        }
+        _scheduleDebouncedSpeech(() => '$_selectedHeightセンチ');
+        break;
+
+      case 1:
+        // 体重（ドラムロール）
+        final delta = isUp ? 1.0 : -1.0;
+        final next = (_selectedWeight + delta).clamp(
+          _minWeight.toDouble(),
+          _maxWeight.toDouble(),
+        );
+        if (next != _selectedWeight) {
+          setState(() {
+            _selectedWeight = next;
+          });
+          if (_weightController.hasClients) {
+            _weightController.animateToItem(
+              (next - _minWeight).toInt(),
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOut,
+            );
+          }
+        }
+        _scheduleDebouncedSpeech(() => '${_selectedWeight.toInt()}キロ');
+        break;
+
+      case 2:
+        // 年齢（5歳区切り）
+        final curIdx = _ageOptions.indexOf(_selectedAgeGroup);
+        final delta = isUp ? 1 : -1;
+        final nextIdx = (curIdx + delta).clamp(0, _ageOptions.length - 1);
+        setState(() {
+          _selectedAgeGroup = _ageOptions[nextIdx];
+        });
+        _scheduleDebouncedSpeech(() => _selectedAgeGroup);
+        break;
+
+      case 3:
+        // 性別
+        final curIdx = _genderOptions.indexOf(_selectedGender);
+        final delta = isUp ? 1 : -1;
+        final nextIdx = (curIdx + delta).clamp(0, _genderOptions.length - 1);
+        setState(() {
+          _selectedGender = _genderOptions[nextIdx];
+        });
+        _scheduleDebouncedSpeech(() => _selectedGender);
+        break;
+
+      case 4:
+        // 目的カテゴリ分岐
+        setState(() {
+          _selectedAimCategory = _selectedAimCategory == AimCategory.bodyType
+              ? AimCategory.sports
+              : AimCategory.bodyType;
+          _selectedGoal = _selectedAimCategory == AimCategory.bodyType
+              ? _bodyTypeOptions.first
+              : _sportsOptions.first;
+        });
+        _scheduleDebouncedSpeech(() => _selectedAimCategory.label);
+        break;
+
+      case 5:
+        // 目的詳細
+        final options = _selectedAimCategory == AimCategory.bodyType
+            ? _bodyTypeOptions
+            : _sportsOptions;
+        final curIdx = options.indexOf(_selectedGoal);
+        final delta = isUp ? 1 : -1;
+        final nextIdx = (curIdx + delta).clamp(0, options.length - 1);
+        setState(() {
+          _selectedGoal = options[nextIdx];
+        });
+        _scheduleDebouncedSpeech(
+          () => _cleanSpeechText(_selectedGoal),
+        );
+        break;
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // 画面遷移ハンドラ
+  // --------------------------------------------------------------------------
+
   void _goToNextStep() {
+    _debounceTimer?.cancel();
     if (_currentStep < _totalSteps - 1) {
       setState(() {
         _currentStep++;
-        // 目的カテゴリを変更した直後の場合、詳細目標の初期値を整合
         if (_currentStep == 5) {
           if (_selectedAimCategory == AimCategory.bodyType) {
             if (!_bodyTypeOptions.contains(_selectedGoal)) {
@@ -121,20 +333,24 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           }
         }
       });
+      _speakStepIntro();
     } else {
       _finishOnboarding();
     }
   }
 
   void _goToPreviousStep() {
+    _debounceTimer?.cancel();
     if (_currentStep > 0) {
       setState(() {
         _currentStep--;
       });
+      _speakStepIntro();
     }
   }
 
   Future<void> _finishOnboarding() async {
+    _debounceTimer?.cancel();
     final profile = UserProfile(
       heightCm: _selectedHeight,
       weightKg: _selectedWeight,
@@ -146,6 +362,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
     await widget.storageService.saveUserProfile(profile);
     if (!mounted) return;
+    widget.ttsService?.speak('設定が完了しました。チュートリアルを開始します。');
     widget.onCompleted(profile);
   }
 
@@ -170,7 +387,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             ? IconButton(
                 key: const Key('onboarding_appbar_back_button'),
                 icon: const Icon(Icons.arrow_back),
-                onPressed: _goToPreviousStep,
+                onPressed: () {
+                  widget.soundEffectService?.playBeep();
+                  _goToPreviousStep();
+                },
               )
             : null,
       ),
@@ -383,6 +603,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               setState(() {
                 _selectedHeight = _minHeight + index;
               });
+              _scheduleDebouncedSpeech(() => '$_selectedHeightセンチ');
             },
             itemBuilder: (context, index) {
               final val = _minHeight + index;
@@ -429,6 +650,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               setState(() {
                 _selectedWeight = (_minWeight + index).toDouble();
               });
+              _scheduleDebouncedSpeech(() => '${_selectedWeight.toInt()}キロ');
             },
             itemBuilder: (context, index) {
               final val = _minWeight + index;
@@ -468,9 +690,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           label: option,
           isSelected: isSelected,
           onTap: () {
+            widget.soundEffectService?.playBeep();
             setState(() {
               _selectedAgeGroup = option;
             });
+            _scheduleDebouncedSpeech(() => option);
           },
         );
       },
@@ -490,9 +714,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           label: option,
           isSelected: isSelected,
           onTap: () {
+            widget.soundEffectService?.playBeep();
             setState(() {
               _selectedGender = option;
             });
+            _scheduleDebouncedSpeech(() => option);
           },
         );
       },
@@ -510,10 +736,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           icon: Icons.accessibility_new_outlined,
           isSelected: _selectedAimCategory == AimCategory.bodyType,
           onTap: () {
+            widget.soundEffectService?.playBeep();
             setState(() {
               _selectedAimCategory = AimCategory.bodyType;
               _selectedGoal = _bodyTypeOptions.first;
             });
+            _scheduleDebouncedSpeech(() => '目指す体型から選ぶ');
           },
         ),
         const SizedBox(height: 14),
@@ -523,10 +751,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           icon: Icons.sports_soccer_outlined,
           isSelected: _selectedAimCategory == AimCategory.sports,
           onTap: () {
+            widget.soundEffectService?.playBeep();
             setState(() {
               _selectedAimCategory = AimCategory.sports;
               _selectedGoal = _sportsOptions.first;
             });
+            _scheduleDebouncedSpeech(() => 'やっているスポーツから選ぶ');
           },
         ),
       ],
@@ -550,9 +780,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           label: option,
           isSelected: isSelected,
           onTap: () {
+            widget.soundEffectService?.playBeep();
             setState(() {
               _selectedGoal = option;
             });
+            _scheduleDebouncedSpeech(() => _cleanSpeechText(option));
           },
         );
       },
@@ -685,7 +917,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             flex: 2,
             child: OutlinedButton(
               key: const Key('onboarding_back_button'),
-              onPressed: _goToPreviousStep,
+              onPressed: () {
+                widget.soundEffectService?.playBeep();
+                _goToPreviousStep();
+              },
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.textSecondary,
                 side: const BorderSide(color: AppColors.border),
@@ -703,7 +938,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           flex: 3,
           child: ElevatedButton(
             key: const Key('onboarding_next_button'),
-            onPressed: _goToNextStep,
+            onPressed: () {
+              widget.soundEffectService?.playBeep();
+              _goToNextStep();
+            },
             style: ElevatedButton.styleFrom(
               backgroundColor: isLastStep
                   ? AppColors.primaryAccent

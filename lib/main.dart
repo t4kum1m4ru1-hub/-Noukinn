@@ -635,11 +635,15 @@ class _AppEntryRouterState extends State<AppEntryRouter> {
         }
 
         return WelcomeScreen(
+          ttsService: widget.ttsService,
+          soundEffectService: widget.soundEffectService,
           onStart: () {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(
                 builder: (context) => OnboardingScreen(
                   storageService: widget.storageService,
+                  ttsService: widget.ttsService,
+                  soundEffectService: widget.soundEffectService,
                   onCompleted: (profile) {
                     Navigator.of(context).pushReplacement(
                       MaterialPageRoute(
