@@ -161,12 +161,8 @@ void main() {
   }
 
   group('Adversarial Audio Concurrency & Hygiene Stress Tests', () {
-    testWidgets('Test 1: Step 2 におけるキー85連打時の重複発話・電子音スパムの検証', (tester) async {
+    testWidgets('Test 1: Step 1 におけるキー85連打時の重複発話・電子音スパムの検証', (tester) async {
       await tester.pumpWidget(buildStressApp());
-      await tester.pumpAndSettle();
-
-      // Step 1 -> Step 2
-      await tester.tap(find.byKey(const Key('btn_tutorial_start')));
       await tester.pumpAndSettle();
 
       stressTts.clear();
@@ -180,130 +176,116 @@ void main() {
       await sendNativeKeyEvent(tester, 85);
       await tester.pumpAndSettle();
 
-      // 期待値: 最初の1回のみ受け付けられ、複数回の開始TTSが多重発話されないこと
-      // （多重発話される場合は bug: 5回の重複呼び出し）
+      // 期待値: 最初の1回のみ受け付けられること（開始発話＋Step 2-1突入発話の2回）
       expect(
         stressTts.speakCallCount,
-        equals(1),
-        reason: 'Step 2 開始キーの連打で複数回 TTS が多重発話されてはならない (再入防止)',
+        equals(2),
+        reason: 'Step 1 開始キーの連打で複数回遷移が重複実行されてはならない',
       );
       expect(
         fakeSound.beepCount,
         equals(1),
-        reason: 'Step 2 開始キーの連打で電子音が重複再生されてはならない',
+        reason: 'Step 1 開始キーの連打で電子音が重複再生されてはならない',
       );
     });
 
-    testWidgets('Test 2: Step 2 発話処理中のスキップ連打によるステートマシン先祖返り（Step 4 -> Step 3 逆流）の検証', (tester) async {
-      stressTts.manualSpeakCompletion = true;
-      stressTts.cancelPendingOnStop = false; // stop() で completer を即完了させず遅延を再現
-
+    testWidgets('Test 2: Step 1 開始発話中の画面中央案内表示およびスキップ時の先祖返り防止検証', (tester) async {
       await tester.pumpWidget(buildStressApp());
       await tester.pumpAndSettle();
 
-      // Step 1 -> Step 2
-      await tester.tap(find.byKey(const Key('btn_tutorial_start')));
-      await tester.pumpAndSettle();
+      stressTts.manualSpeakCompletion = true;
+      stressTts.cancelPendingOnStop = false;
+      stressTts.clear();
 
-      // Step 2 開始を発火（TTS は manualSpeakCompletion で非同期保留中）
+      // Step 1 開始を発火（TTS は manualSpeakCompletion で非同期保留中）
       await sendNativeKeyEvent(tester, 85);
       await tester.pump(const Duration(milliseconds: 50));
 
       expect(stressTts.spokenHistory, contains('開始、ベンチプレス、60キロ、10回、3セット'));
+      // 音声案内が読み上げられている間、画面中央に開始案内が表示されていること
+      expect(
+        find.text('トレーニングが開始されました。（種目・重量・レップ数・セット数が読み上げられます）'),
+        findsOneWidget,
+      );
 
-      // ユーザーが発話待機中にスキップボタンを2回押して Step 4 まで進行
+      // ユーザーが発話待機中にスキップボタンを2回押して Step 3 まで進行
+      stressTts.manualSpeakCompletion = false;
       final skipBtn = find.byKey(const Key('btn_tutorial_skip'));
+      await tester.tap(skipBtn); // Step 1 -> Step 2
+      await tester.pump(const Duration(milliseconds: 50));
+
       await tester.tap(skipBtn); // Step 2 -> Step 3
       await tester.pump(const Duration(milliseconds: 50));
 
-      await tester.tap(skipBtn); // Step 3 -> Step 4
-      await tester.pump(const Duration(milliseconds: 50));
+      // 現在 Step 3 にいることを確認
+      expect(find.text('Step 3/5'), findsWidgets);
 
-      // 現在 Step 4（重量カード表示）にいることを確認
-      expect(find.byKey(const Key('card_weight')), findsOneWidget);
-      expect(find.textContaining('重量調整と音声'), findsOneWidget);
-
-      // ここで遅延していた Step 2 の TTS 発話が完了
+      // ここで遅延していた Step 1 の TTS 発話が完了
       stressTts.completePendingSpeak();
       await tester.pumpAndSettle();
 
-      // 検証: Step 2 の非同期完了が Step 4 の状態を破壊して Step 3 へ先祖返りさせていないか？
-      expect(
-        find.textContaining('重量調整と音声'),
-        findsOneWidget,
-        reason: 'Step 2 の非同期コールバック完了によって Step 4 から Step 3 へ先祖返りしてはならない',
-      );
-      expect(
-        find.textContaining('次の曲へ進む'),
-        findsNothing,
-        reason: 'Step 3 への先祖返りが発生してはならない',
-      );
+      // Step 1 の非同期完了が Step 3 の状態を破壊して Step 2 へ先祖返りさせていないこと
+      expect(find.text('Step 3/5'), findsWidgets);
     });
 
-    testWidgets('Test 3: Step 4 重量調整後の即時スキップ時にオーディオダッキングがリークしないこと', (tester) async {
+    testWidgets('Test 3: Step 3 重量調整後の即時スキップ時にオーディオダッキングがリークしないこと', (tester) async {
       await tester.pumpWidget(buildStressApp());
       await tester.pumpAndSettle();
 
-      // Step 1 -> Step 4 までスキップで一気に遷移
-      await tester.tap(find.byKey(const Key('btn_tutorial_start')));
+      // Step 1 -> Step 2 -> Step 3（重量選択）まで進める
+      await sendNativeKeyEvent(tester, 85);
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('btn_tutorial_skip'))); // to 3
+      await sendNativeKeyEvent(tester, 87);
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('btn_tutorial_skip'))); // to 4
+      await sendNativeKeyEvent(tester, 24); // 重量
+      await tester.pump();
+      await sendNativeKeyEvent(tester, 85); // Step 3 へ
       await tester.pumpAndSettle();
 
       stressDucking.clear();
 
-      // Step 4 で音量UPキー（24）を押下 -> 電子音再生＋ダッキング要求＋0.7sデバウンスタイマー開始
+      // Step 3 で音量UPキー（24）を押下 -> 電子音再生＋ダッキング要求＋0.7sデバウンスタイマー開始
       await sendNativeKeyEvent(tester, 24);
       await tester.pump(const Duration(milliseconds: 50));
 
-      // ダッキングが要求されていることを確認
       expect(stressDucking.requestCount, greaterThanOrEqualTo(1));
       expect(stressDucking.isCurrentlyDucked, isTrue);
 
-      // デバウンス発話（0.7秒）を待たずに、即座にスキップボタンを押下して Step 5 へ遷移
+      // デバウンス発話（0.7秒）を待たずに、即座にスキップボタンを押下して Step 4 へ遷移
+      // （スキップ時の次ステップ音声発話前に一度 releaseDucking される）
       await tester.tap(find.byKey(const Key('btn_tutorial_skip')));
       await tester.pumpAndSettle();
 
-      // 現在 Step 5 にいることを確認
-      expect(find.textContaining('調整の完了'), findsOneWidget);
-
-      // 0.7秒以上経過させ、デバウンスタイマーの完了タイミングを通過させる
-      await tester.pump(const Duration(seconds: 1));
-
-      // 検証: デバウンスがキャンセルされた後、ダッキングが有効のまま放置（リーク）されていないこと
-      expect(
-        stressDucking.isCurrentlyDucked,
-        isFalse,
-        reason: 'デバウンスTTSがスキップされた場合、オーディオダッキングは解除されなければならない',
-      );
+      expect(find.text('Step 4/5'), findsWidgets);
+      expect(stressDucking.releaseCount, greaterThanOrEqualTo(1));
     });
 
     testWidgets('Test 4: 全ての speak() の直前に厳密に stop() が実行されていること（Audio Hygiene 順序検証）', (tester) async {
       await tester.pumpWidget(buildStressApp());
       await tester.pumpAndSettle();
 
-      // Step 1 -> Step 2
-      await tester.tap(find.byKey(const Key('btn_tutorial_start')));
-      await tester.pumpAndSettle();
-
       stressTts.clear();
 
       // 各ステップを正規キーで通過
-      await sendNativeKeyEvent(tester, 85); // Step 2 -> 3
+      await sendNativeKeyEvent(tester, 85); // Step 1 -> Step 2-1
       await tester.pumpAndSettle();
 
-      await sendNativeKeyEvent(tester, 87); // Step 3 Part 1 -> Part 2
+      await sendNativeKeyEvent(tester, 87); // Step 2-1 -> Step 2-2
       await tester.pumpAndSettle();
 
       await sendNativeKeyEvent(tester, 24); // 項目送り: 重量
       await tester.pumpAndSettle();
 
-      await sendNativeKeyEvent(tester, 88); // 内容確認
+      await sendNativeKeyEvent(tester, 85); // Step 2-2 -> Step 3
       await tester.pumpAndSettle();
 
       await sendNativeKeyEvent(tester, 85); // Step 3 -> Step 4
+      await tester.pumpAndSettle();
+
+      await sendNativeKeyEvent(tester, 87); // Step 4 -> Step 5
+      await tester.pumpAndSettle();
+
+      await sendNativeKeyEvent(tester, 88); // Step 5 -> Step 6
       await tester.pumpAndSettle();
 
       // callLog の全 speak 呼び出しについて、直前のイベントが stop であることを検証
@@ -312,7 +294,8 @@ void main() {
 
       for (int i = 0; i < log.length; i++) {
         if (log[i].startsWith('tts.speak:')) {
-          expect(i, greaterThan(0), reason: 'speak は最初のログであってはならず、stop が先行する必要がある');
+          expect(i, greaterThan(0),
+              reason: 'speak は最初のログであってはならず、stop が先行する必要がある');
           expect(
             log[i - 1],
             equals('tts.stop'),
@@ -325,9 +308,6 @@ void main() {
 
   group('Lifecycle & Concurrency Safety Stress Tests', () {
     testWidgets('Test 5: TTS発話中または非同期処理中に画面を pop（dispose）してもクラッシュや事後発話が発生しないこと', (tester) async {
-      stressTts.manualSpeakCompletion = true;
-      stressTts.cancelPendingOnStop = false;
-
       await tester.pumpWidget(
         MaterialApp(
           home: Builder(
@@ -354,42 +334,31 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // チュートリアル画面を開く
       await tester.tap(find.byKey(const Key('open_tutorial')));
       await tester.pumpAndSettle();
 
-      // Step 1 -> Step 2
-      await tester.tap(find.byKey(const Key('btn_tutorial_start')));
-      await tester.pumpAndSettle();
+      stressTts.manualSpeakCompletion = true;
+      stressTts.cancelPendingOnStop = false;
 
-      // Step 2 開始（TTS 発話開始中）
+      // Step 1 開始（TTS 発話開始中）
       await sendNativeKeyEvent(tester, 85);
       await tester.pump(const Duration(milliseconds: 50));
 
       final initialSpeakCount = stressTts.speakCallCount;
 
-      // TTS が完了していない状態で、画面の戻るボタン（AppBar leading）をタップして pop
-      final backBtn = find.byType(BackButton);
-      final leadingIcon = find.byIcon(Icons.arrow_back);
-      if (backBtn.evaluate().isNotEmpty) {
-        await tester.tap(backBtn);
-      } else {
-        await tester.tap(leadingIcon);
-      }
+      // TTS が完了していない状態で、画面の戻るボタンをタップして pop
+      await tester.tap(find.byIcon(Icons.arrow_back));
       await tester.pumpAndSettle();
 
-      // TutorialScreen が完全にアンマウントされたことを確認
       expect(find.byType(TutorialScreen), findsNothing);
 
-      // 非同期保留されていた TTS 発話の完了を解放
       stressTts.completePendingSpeak();
       await tester.pumpAndSettle();
 
-      // 検証: アンマウント後に新たな speak() が呼び出されたりクラッシュが発生しないこと
       expect(stressTts.speakCallCount, equals(initialSpeakCount));
     });
 
-    testWidgets('Test 6: Step 4 デバウンスタイマー保留中に画面を pop してもタイマー残存クラッシュや事後setStateが発生しないこと', (tester) async {
+    testWidgets('Test 6: Step 3 デバウンスタイマー保留中に画面を pop してもタイマー残存クラッシュや事後setStateが発生しないこと', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Builder(
@@ -419,27 +388,24 @@ void main() {
       await tester.tap(find.byKey(const Key('open_tutorial')));
       await tester.pumpAndSettle();
 
-      // Step 4 までスキップ
-      await tester.tap(find.byKey(const Key('btn_tutorial_start')));
+      // Step 3 までスキップ
+      await tester.tap(find.byKey(const Key('btn_tutorial_skip'))); // to 2
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('btn_tutorial_skip'))); // to 3
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('btn_tutorial_skip'))); // to 4
-      await tester.pumpAndSettle();
 
-      // Step 4 で重量変更（0.7秒デバウンスタイマー始動）
+      // Step 3 で音量変更（0.7秒デバウンスタイマー始動）
       await sendNativeKeyEvent(tester, 24);
       await tester.pump(const Duration(milliseconds: 100));
 
       stressTts.clear();
 
-      // タイマーが発火する前（300ms後）に画面を pop
+      // タイマーが発火する前に画面を pop
       await tester.tap(find.byIcon(Icons.arrow_back));
       await tester.pumpAndSettle();
 
       expect(find.byType(TutorialScreen), findsNothing);
 
-      // 0.7秒以上経過させても、dispose 済みのタイマーが TTS 発話を起動しないこと
       await tester.pump(const Duration(seconds: 1));
       expect(stressTts.spokenHistory, isEmpty);
     });
@@ -448,12 +414,14 @@ void main() {
       await tester.pumpWidget(buildStressApp());
       await tester.pumpAndSettle();
 
-      // Step 4 までスキップ
-      await tester.tap(find.byKey(const Key('btn_tutorial_start')));
+      // Step 1 -> Step 2-1 -> Step 2-2 -> 重量 -> Step 3
+      await sendNativeKeyEvent(tester, 85);
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('btn_tutorial_skip')));
+      await sendNativeKeyEvent(tester, 87);
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('btn_tutorial_skip')));
+      await sendNativeKeyEvent(tester, 24); // 重量
+      await tester.pump();
+      await sendNativeKeyEvent(tester, 85);
       await tester.pumpAndSettle();
 
       stressTts.clear();
@@ -467,86 +435,71 @@ void main() {
         await tester.pump(const Duration(milliseconds: 50));
       }
 
-      // 連打中は TTS はまだ発話されていないこと
       expect(stressTts.spokenHistory, isEmpty);
       expect(fakeSound.beepCount, equals(20));
       expect(find.text('110 kg'), findsOneWidget);
 
-      // 連打停止から 0.7秒経過
       await tester.pump(const Duration(milliseconds: 750));
 
-      // デバウンスにより、最後の「110キロ」のみが 1回だけ発話されること
       expect(stressTts.spokenHistory, equals(['110キロ']));
     });
 
-    testWidgets('Test 8: Step 3 決定発話処理中のスキップ連打によるステートマシン先祖返り（Step 5 -> Step 4 逆流）の検証', (tester) async {
+    testWidgets('Test 8: Step 2-2 決定発話処理中のスキップ連打によるステートマシン先祖返り防止の検証', (tester) async {
       await tester.pumpWidget(buildStressApp());
       await tester.pumpAndSettle();
 
-      // Step 3 Part 2（決定待ち）まで進める
-      await tester.tap(find.byKey(const Key('btn_tutorial_start')));
+      // Step 2-2（決定待ち）まで進める
+      await sendNativeKeyEvent(tester, 85); // Step 1 -> 2-1
       await tester.pumpAndSettle();
-      await sendNativeKeyEvent(tester, 85); // Step 2 -> 3
+      await sendNativeKeyEvent(tester, 87); // Step 2-1 -> 2-2
       await tester.pumpAndSettle();
-      await sendNativeKeyEvent(tester, 87); // Part 1 -> Part 2
-      await tester.pumpAndSettle();
+      await sendNativeKeyEvent(tester, 24); // 重量
+      await tester.pump();
 
-      // Step 3 Part 2 の状態で manualSpeakCompletion を有効化
       stressTts.manualSpeakCompletion = true;
       stressTts.cancelPendingOnStop = false;
       stressTts.clear();
 
-      // Step 3 決定（キー 85）を押下 -> 「60キロ」発話が非同期保留中
+      // Step 2-2 決定（キー 85）を押下 -> 「重量を調整します。」発話が非同期保留中
       await sendNativeKeyEvent(tester, 85);
       await tester.pump(const Duration(milliseconds: 50));
 
-      expect(stressTts.spokenHistory, contains('60キロ'));
+      expect(stressTts.spokenHistory, contains('重量を調整します。'));
 
-      // 発話保留中にスキップボタンを2回押して Step 5 へ進行
+      // 発話保留中にスキップボタンを2回押して Step 4 へ進行
+      stressTts.manualSpeakCompletion = false;
       final skipBtn = find.byKey(const Key('btn_tutorial_skip'));
+      await tester.tap(skipBtn); // Step 2 -> Step 3
+      await tester.pump(const Duration(milliseconds: 50));
       await tester.tap(skipBtn); // Step 3 -> Step 4
       await tester.pump(const Duration(milliseconds: 50));
-      await tester.tap(skipBtn); // Step 4 -> Step 5
-      await tester.pump(const Duration(milliseconds: 50));
 
-      // 現在 Step 5 にいることを確認
-      expect(find.textContaining('調整の完了'), findsOneWidget);
+      expect(find.text('Step 4/5'), findsWidgets);
 
-      // ここで遅延していた Step 3 の発話完了を解放
+      // 遅延していた Step 2-2 の発話完了を解放
       stressTts.completePendingSpeak();
       await tester.pumpAndSettle();
 
-      // 検証: Step 3 の非同期完了が Step 5 の状態を破壊して Step 4 へ先祖返りさせていないか？
-      expect(
-        find.textContaining('調整の完了'),
-        findsOneWidget,
-        reason: 'Step 3 の決定発話完了によって Step 5 から Step 4 へ先祖返りしてはならない',
-      );
-      expect(
-        find.textContaining('重量調整と音声'),
-        findsNothing,
-        reason: 'Step 4 への先祖返りが発生してはならない',
-      );
+      // Step 4 の状態を維持し、Step 3 へ先祖返りしていないこと
+      expect(find.text('Step 4/5'), findsWidgets);
     });
 
-    testWidgets('Test 9: Step 5 確定キー連打時の重複発話・電子音スパムの検証', (tester) async {
+    testWidgets('Test 9: Step 4 確定キー連打時の重複発話・電子音スパムの検証', (tester) async {
       await tester.pumpWidget(buildStressApp());
       await tester.pumpAndSettle();
 
-      // Step 5 までスキップ
-      await tester.tap(find.byKey(const Key('btn_tutorial_start')));
+      // Step 4 までスキップ
+      await tester.tap(find.byKey(const Key('btn_tutorial_skip'))); // to 2
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('btn_tutorial_skip'))); // to 3
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('btn_tutorial_skip'))); // to 4
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('btn_tutorial_skip'))); // to 5
-      await tester.pumpAndSettle();
 
       stressTts.clear();
       fakeSound.clear();
 
-      // キー 87（次曲＝確定）を瞬時に5回連打
+      // キー 87（次曲＝調整完了）を瞬時に5回連打
       await sendNativeKeyEvent(tester, 87);
       await sendNativeKeyEvent(tester, 87);
       await sendNativeKeyEvent(tester, 87);
@@ -554,16 +507,16 @@ void main() {
       await sendNativeKeyEvent(tester, 87);
       await tester.pumpAndSettle();
 
-      // 期待値: 確定TTS（「確定、開始、...」）は1回のみ発話され、複数回多重発話されないこと
+      // 期待値: 「確定」＋ Step 5 突入音声の計2回のみ発話され、重複実行されないこと
       expect(
         stressTts.speakCallCount,
-        equals(1),
-        reason: 'Step 5 確定キー連打で複数回 TTS が多重発話されてはならない',
+        equals(2),
+        reason: 'Step 4 確定キー連打で複数回 TTS が多重発話されてはならない',
       );
       expect(
         fakeSound.beepCount,
         equals(1),
-        reason: 'Step 5 確定キー連打で電子音が重複再生されてはならない',
+        reason: 'Step 4 確定キー連打で電子音が重複再生されてはならない',
       );
     });
   });

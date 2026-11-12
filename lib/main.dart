@@ -223,6 +223,7 @@ class FlutterTtsService implements TtsService {
   bool _isSpeaking = false;
   bool _isDucked = false;
   Completer<void>? _cancelCompleter;
+  Completer<void>? _utteranceCompleter;
 
   FlutterTtsService({
     FlutterTts? tts,
@@ -230,6 +231,14 @@ class FlutterTtsService implements TtsService {
   }) : _flutterTts = tts ?? FlutterTts(),
        _duckingController =
            duckingController ?? AudioSessionDuckingController();
+
+  void _completeUtterance() {
+    final completer = _utteranceCompleter;
+    _utteranceCompleter = null;
+    if (completer != null && !completer.isCompleted) {
+      completer.complete();
+    }
+  }
 
   @override
   Future<void> initialize() async {
@@ -261,12 +270,14 @@ class FlutterTtsService implements TtsService {
       // 発話完了時：オーディオフォーカスを解除し BGM 音量を元に戻す
       _flutterTts.setCompletionHandler(() {
         _isSpeaking = false;
+        _completeUtterance();
         unawaited(_releaseDuckingIfNeeded());
       });
 
       // 発話中断時：オーディオフォーカスを解除し BGM 音量を元に戻す
       _flutterTts.setCancelHandler(() {
         _isSpeaking = false;
+        _completeUtterance();
         final future = _releaseDuckingIfNeeded();
         if (_cancelCompleter != null && !_cancelCompleter!.isCompleted) {
           future.whenComplete(() {
@@ -281,6 +292,7 @@ class FlutterTtsService implements TtsService {
       _flutterTts.setErrorHandler((dynamic message) {
         debugPrint('FlutterTts errorHandler: $message');
         _isSpeaking = false;
+        _completeUtterance();
         final future = _releaseDuckingIfNeeded();
         if (_cancelCompleter != null && !_cancelCompleter!.isCompleted) {
           future.whenComplete(() {
@@ -320,6 +332,7 @@ class FlutterTtsService implements TtsService {
         final completer = Completer<void>();
         _cancelCompleter = completer;
         _isSpeaking = false;
+        _completeUtterance();
         await _flutterTts.stop();
         await completer.future.timeout(
           const Duration(milliseconds: 80),
@@ -336,14 +349,31 @@ class FlutterTtsService implements TtsService {
     } catch (e) {
       debugPrint('FlutterTtsService.speak error: $e');
       _isSpeaking = false;
+      _completeUtterance();
       await _releaseDuckingIfNeeded();
     }
+  }
+
+  /// 発話を開始し、ネイティブTTSエンジンの読み上げ完了（または中断）まで待機する
+  Future<void> speakAndWait(String text) async {
+    final completer = Completer<void>();
+    await speak(text);
+    if (!_isSpeaking) {
+      return;
+    }
+    _utteranceCompleter = completer;
+    final timeoutMs = (text.length * 250).clamp(2000, 12000);
+    await completer.future.timeout(
+      Duration(milliseconds: timeoutMs),
+      onTimeout: _completeUtterance,
+    );
   }
 
   @override
   Future<void> stop() async {
     try {
       _isSpeaking = false;
+      _completeUtterance();
       await _flutterTts.stop();
     } catch (e) {
       debugPrint('FlutterTtsService.stop error: $e');
