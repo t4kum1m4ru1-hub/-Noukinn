@@ -40,12 +40,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
-import 'models/user_profile.dart';
 import 'screens/onboarding/onboarding_screen.dart';
 import 'screens/onboarding/welcome_screen.dart';
 import 'services/profile_storage_service.dart';
 import 'services/speech_recognition_service.dart';
-import 'services/voice_command_interpreter.dart';
 import 'training_screen.dart';
 import 'tutorial_screen.dart';
 
@@ -368,6 +366,7 @@ class FlutterTtsService implements TtsService {
   }
 
   /// 発話を開始し、ネイティブTTSエンジンの読み上げ完了（または中断）まで待機する
+  @override
   Future<void> speakAndWait(String text) async {
     final completer = Completer<void>();
     await speak(text);

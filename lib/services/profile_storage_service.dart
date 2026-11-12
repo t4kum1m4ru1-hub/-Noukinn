@@ -86,3 +86,4 @@ class InMemoryProfileStorageService implements ProfileStorageService {
     _profile = null;
   }
 }
+

@@ -8,8 +8,8 @@ import '../../main.dart'
         SpeechRecognitionService,
         TtsService,
         VoiceCommandInterpreter,
-        VoiceAction,
         NextStepAction;
+import '../../models/user_profile.dart';
 import '../../theme/app_colors.dart';
 
 /// 初回起動時に最初に表示されるウェルカム画面

@@ -60,8 +60,10 @@ class PlatformSpeechRecognitionService implements SpeechRecognitionService {
 
     try {
       await _speechToText.listen(
-        localeId: 'ja_JP',
-        listenMode: stt.ListenMode.confirmation,
+        listenOptions: stt.SpeechListenOptions(
+          listenMode: stt.ListenMode.confirmation,
+          localeId: 'ja_JP',
+        ),
         onResult: (result) {
           if (result.recognizedWords.isNotEmpty) {
             onResult(result.recognizedWords);
@@ -93,7 +95,7 @@ class PlatformSpeechRecognitionService implements SpeechRecognitionService {
 /// 自動テスト用のインメモリ音声認識サービス
 class FakeSpeechRecognitionService implements SpeechRecognitionService {
   bool _isListening = false;
-  bool _isAvailable = true;
+  final bool _isAvailable = true;
   int startCount = 0;
   int stopCount = 0;
   void Function(String recognizedWords)? _onResultCallback;
@@ -131,3 +133,4 @@ class FakeSpeechRecognitionService implements SpeechRecognitionService {
   @override
   bool get isAvailable => _isAvailable;
 }
+

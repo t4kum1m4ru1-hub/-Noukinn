@@ -64,6 +64,11 @@ class StressFakeTtsService implements TtsService {
   }
 
   @override
+  Future<void> speakAndWait(String text) async {
+    await speak(text);
+  }
+
+  @override
   Future<void> setVolume(double volume) async {}
 
   @override
