@@ -15,8 +15,8 @@ class UserProfile {
   /// 体重 (kg)
   final double weightKg;
 
-  /// 年齢区分（5歳刻み: "20〜24歳" 等）
-  final String ageGroup;
+  /// 生まれ年 (西暦: 例 2000)
+  final int birthYear;
 
   /// 性別 ("男性", "女性", "その他・回答しない")
   final String gender;
@@ -30,7 +30,7 @@ class UserProfile {
   const UserProfile({
     required this.heightCm,
     required this.weightKg,
-    required this.ageGroup,
+    required this.birthYear,
     required this.gender,
     required this.aimCategory,
     required this.targetGoal,
@@ -41,7 +41,7 @@ class UserProfile {
     return {
       'heightCm': heightCm,
       'weightKg': weightKg,
-      'ageGroup': ageGroup,
+      'birthYear': birthYear,
       'gender': gender,
       'aimCategory': aimCategory.name,
       'targetGoal': targetGoal,
@@ -53,7 +53,7 @@ class UserProfile {
     return UserProfile(
       heightCm: json['heightCm'] as int? ?? 170,
       weightKg: (json['weightKg'] as num?)?.toDouble() ?? 65.0,
-      ageGroup: json['ageGroup'] as String? ?? '20〜24歳',
+      birthYear: json['birthYear'] as int? ?? 2000,
       gender: json['gender'] as String? ?? '男性',
       aimCategory: json['aimCategory'] == AimCategory.sports.name
           ? AimCategory.sports
@@ -65,7 +65,7 @@ class UserProfile {
   UserProfile copyWith({
     int? heightCm,
     double? weightKg,
-    String? ageGroup,
+    int? birthYear,
     String? gender,
     AimCategory? aimCategory,
     String? targetGoal,
@@ -73,7 +73,7 @@ class UserProfile {
     return UserProfile(
       heightCm: heightCm ?? this.heightCm,
       weightKg: weightKg ?? this.weightKg,
-      ageGroup: ageGroup ?? this.ageGroup,
+      birthYear: birthYear ?? this.birthYear,
       gender: gender ?? this.gender,
       aimCategory: aimCategory ?? this.aimCategory,
       targetGoal: targetGoal ?? this.targetGoal,
