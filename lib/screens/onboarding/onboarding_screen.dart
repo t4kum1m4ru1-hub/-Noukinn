@@ -1,0 +1,1178 @@
+import 'dart:async';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import '../../main.dart'
+    show
+        ButtonAction,
+        KeyEventChannelDispatcher,
+        SoundEffectService,
+        SpeechRecognitionService,
+        TtsService,
+        VoiceCommandInterpreter,
+        NextStepAction,
+        PreviousStepAction,
+        SetHeightAction,
+        AdjustHeightAction,
+        SetWeightAction,
+        AdjustWeightAction,
+        SelectAgeAction,
+        SelectGenderAction,
+        SelectAimCategoryAction,
+        SelectGoalAction,
+        UnknownVoiceAction;
+import '../../models/user_profile.dart';
+import '../../services/profile_storage_service.dart';
+import '../../theme/app_colors.dart';
+import 'question_placeholder_image.dart';
+
+/// 初回起動時に表示される情報収集（アンケート）画面
+class OnboardingScreen extends StatefulWidget {
+  final ProfileStorageService storageService;
+  final void Function(UserProfile profile) onCompleted;
+  final TtsService? ttsService;
+  final SoundEffectService? soundEffectService;
+  final SpeechRecognitionService? speechService;
+
+  const OnboardingScreen({
+    super.key,
+    required this.storageService,
+    required this.onCompleted,
+    this.ttsService,
+    this.soundEffectService,
+    this.speechService,
+  });
+
+  @override
+  State<OnboardingScreen> createState() => _OnboardingScreenState();
+}
+
+class _OnboardingScreenState extends State<OnboardingScreen> {
+  // ステップインデックス（0: 身長, 1: 体重, 2: 年齢, 3: 性別, 4: 目的カテゴリ, 5: 目的詳細）
+  int _currentStep = 0;
+  static const int _totalSteps = 6;
+
+  // 身長ドラムロール定義（120cm 〜 220cm）
+  static const int _minHeight = 120;
+  static const int _maxHeight = 220;
+  late int _selectedHeight;
+  late final FixedExtentScrollController _heightController;
+
+  // 体重ドラムロール定義（30kg 〜 150kg）
+  static const int _minWeight = 30;
+  static const int _maxWeight = 150;
+  late double _selectedWeight;
+  late final FixedExtentScrollController _weightController;
+
+  // 年齢選択肢（5歳区切り）
+  static const List<String> _ageOptions = [
+    '〜19歳',
+    '20〜24歳',
+    '25〜29歳',
+    '30〜34歳',
+    '35〜39歳',
+    '40〜44歳',
+    '45〜49歳',
+    '50〜54歳',
+    '55〜59歳',
+    '60歳以上',
+  ];
+  String _selectedAgeGroup = '20〜24歳';
+
+  // 性別選択肢
+  static const List<String> _genderOptions = [
+    '男性',
+    '女性',
+    'その他・回答しない',
+  ];
+  String _selectedGender = '男性';
+
+  // 目的カテゴリ選択肢
+  AimCategory _selectedAimCategory = AimCategory.bodyType;
+
+  // 目指す体型の選択肢
+  static const List<String> _bodyTypeOptions = [
+    '細マッチョ（引き締め＆筋力）',
+    '筋肥大・バルクアップ（たくましい体）',
+    '引き締め・ダイエット（脂肪燃焼）',
+    '健康維持・体力向上（運動不足解消）',
+  ];
+
+  // 行っているスポーツの選択肢
+  static const List<String> _sportsOptions = [
+    'ランニング・陸上',
+    'サッカー・フットサル',
+    '野球',
+    'バスケットボール',
+    '格闘技・ボクシング',
+    '水泳',
+    'その他・複数のスポーツ',
+  ];
+
+  String _selectedGoal = '細マッチョ（引き締め＆筋力）';
+
+  // 0.7秒デバウンスTTS発話タイマー
+  Timer? _debounceTimer;
+  static const Duration kDebounceDuration = Duration(milliseconds: 700);
+
+  // 音声認識状態
+  bool _isListening = false;
+  String? _lastRecognizedWords;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedHeight = 170;
+    _selectedWeight = 65.0;
+    _heightController = FixedExtentScrollController(
+      initialItem: _selectedHeight - _minHeight,
+    );
+    _weightController = FixedExtentScrollController(
+      initialItem: (_selectedWeight - _minWeight).toInt(),
+    );
+
+    // イヤホン・物理メディアキーリスナーの登録
+    KeyEventChannelDispatcher.instance.registerListener(_handleButtonAction);
+
+    // 画面初期表示時の音声案内フロー開始
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _speakStepIntro();
+    });
+  }
+
+  @override
+  void dispose() {
+    KeyEventChannelDispatcher.instance.unregisterListener(_handleButtonAction);
+    widget.speechService?.stopListening();
+    _debounceTimer?.cancel();
+    _heightController.dispose();
+    _weightController.dispose();
+    super.dispose();
+  }
+
+  // --------------------------------------------------------------------------
+  // 音声案内（TTS）＆ 音声認識（Speech-to-Text）連携
+  // --------------------------------------------------------------------------
+
+  /// 各ステップ突入時の音声案内
+  /// 読み上げが完了した後に、電子音を鳴らしてマイクの聞き取りを開始する
+  Future<void> _speakStepIntro() async {
+    _debounceTimer?.cancel();
+    await widget.speechService?.stopListening();
+    if (mounted) {
+      setState(() {
+        _isListening = false;
+        _lastRecognizedWords = null;
+      });
+    }
+
+    String intro;
+    switch (_currentStep) {
+      case 0:
+        intro = '身長を教えてください。現在、$_selectedHeightセンチです';
+        break;
+      case 1:
+        intro = '体重を教えてください。現在、${_selectedWeight.toInt()}キロです';
+        break;
+      case 2:
+        intro = '年齢を教えてください。現在、$_selectedAgeGroupです';
+        break;
+      case 3:
+        intro = '性別を教えてください。現在、$_selectedGenderです';
+        break;
+      case 4:
+        intro = '目標の設定基準を教えてください。現在、${_selectedAimCategory.label}です';
+        break;
+      case 5:
+        final goal = _cleanSpeechText(_selectedGoal);
+        intro = _selectedAimCategory == AimCategory.bodyType
+            ? '目指す体型を教えてください。現在、$goalです'
+            : '行っているスポーツを教えてください。現在、$goalです';
+        break;
+      default:
+        intro = '';
+    }
+
+    if (widget.ttsService != null && intro.isNotEmpty) {
+      await widget.ttsService!.speakAndWait(intro);
+    }
+    if (!mounted) return;
+
+    // 音声読み上げ終了後、合図の短い電子音を鳴らしてマイク入力待機を開始
+    await widget.soundEffectService?.playBeep();
+    _startListening();
+  }
+
+  /// 音声認識の開始
+  Future<void> _startListening() async {
+    if (widget.speechService == null) return;
+    setState(() {
+      _isListening = true;
+    });
+
+    await widget.speechService!.startListening(
+      onResult: (words) {
+        if (!mounted) return;
+        setState(() {
+          _lastRecognizedWords = words;
+        });
+        _handleVoiceSpeech(words);
+      },
+    );
+  }
+
+  /// 認識した音声コマンドを解析して実行
+  void _handleVoiceSpeech(String words) {
+    final action = VoiceCommandInterpreter.interpret(
+      step: _currentStep,
+      speech: words,
+      currentAimCategory: _selectedAimCategory,
+    );
+
+    switch (action) {
+      case NextStepAction():
+        widget.soundEffectService?.playBeep();
+        _goToNextStep();
+        break;
+
+      case PreviousStepAction():
+        widget.soundEffectService?.playBeep();
+        if (_currentStep > 0) {
+          _goToPreviousStep();
+        } else {
+          _speakStepIntro();
+        }
+        break;
+
+      case SetHeightAction(:final heightCm):
+        widget.soundEffectService?.playBeep();
+        setState(() {
+          _selectedHeight = heightCm;
+        });
+        if (_heightController.hasClients) {
+          _heightController.animateToItem(
+            heightCm - _minHeight,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+          );
+        }
+        _scheduleDebouncedSpeech(() => '$heightCmセンチ');
+        break;
+
+      case AdjustHeightAction(:final delta):
+        _handleVolume(isUp: delta > 0);
+        break;
+
+      case SetWeightAction(:final weightKg):
+        widget.soundEffectService?.playBeep();
+        setState(() {
+          _selectedWeight = weightKg;
+        });
+        if (_weightController.hasClients) {
+          _weightController.animateToItem(
+            (weightKg - _minWeight).toInt(),
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+          );
+        }
+        _scheduleDebouncedSpeech(() => '${weightKg.toInt()}キロ');
+        break;
+
+      case AdjustWeightAction(:final delta):
+        _handleVolume(isUp: delta > 0);
+        break;
+
+      case SelectAgeAction(:final ageGroup):
+        widget.soundEffectService?.playBeep();
+        setState(() {
+          _selectedAgeGroup = ageGroup;
+        });
+        _scheduleDebouncedSpeech(() => ageGroup);
+        break;
+
+      case SelectGenderAction(:final gender):
+        widget.soundEffectService?.playBeep();
+        setState(() {
+          _selectedGender = gender;
+        });
+        _scheduleDebouncedSpeech(() => gender);
+        break;
+
+      case SelectAimCategoryAction(:final category):
+        widget.soundEffectService?.playBeep();
+        setState(() {
+          _selectedAimCategory = category;
+          _selectedGoal = category == AimCategory.bodyType
+              ? _bodyTypeOptions.first
+              : _sportsOptions.first;
+        });
+        _scheduleDebouncedSpeech(() => category.label);
+        break;
+
+      case SelectGoalAction(:final goal):
+        widget.soundEffectService?.playBeep();
+        setState(() {
+          _selectedGoal = goal;
+        });
+        _scheduleDebouncedSpeech(() => _cleanSpeechText(goal));
+        break;
+
+      case UnknownVoiceAction():
+        break;
+    }
+  }
+
+  /// 0.7秒操作が止まった後に読み上げるデバウンス処理
+  void _scheduleDebouncedSpeech(String Function() speechBuilder) {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(kDebounceDuration, () {
+      if (!mounted) return;
+      widget.ttsService?.speak(speechBuilder());
+    });
+  }
+
+  /// 括弧書きを省いた自然な読み上げ文字列
+  String _cleanSpeechText(String raw) {
+    final idx = raw.indexOf('（');
+    if (idx != -1) {
+      return raw.substring(0, idx).trim();
+    }
+    return raw;
+  }
+
+  // --------------------------------------------------------------------------
+  // イヤホン・キーイベントハンドラ
+  // --------------------------------------------------------------------------
+  void _handleButtonAction(ButtonAction action) {
+    switch (action) {
+      case ButtonAction.volumeUp:
+        _handleVolume(isUp: true);
+        break;
+      case ButtonAction.volumeDown:
+        _handleVolume(isUp: false);
+        break;
+      case ButtonAction.mediaPlayPause:
+      case ButtonAction.headsetHook:
+        widget.soundEffectService?.playBeep();
+        _goToNextStep();
+        break;
+      case ButtonAction.mediaNext:
+        widget.soundEffectService?.playBeep();
+        _goToNextStep();
+        break;
+      case ButtonAction.mediaPrevious:
+        widget.soundEffectService?.playBeep();
+        if (_currentStep > 0) {
+          _goToPreviousStep();
+        } else {
+          _speakStepIntro();
+        }
+        break;
+    }
+  }
+
+  /// 音量ボタンによる項目移動・数値変更
+  void _handleVolume({required bool isUp}) {
+    widget.soundEffectService?.playBeep();
+
+    switch (_currentStep) {
+      case 0:
+        // 身長（ドラムロール）
+        final delta = isUp ? 1 : -1;
+        final next = (_selectedHeight + delta).clamp(_minHeight, _maxHeight);
+        if (next != _selectedHeight) {
+          setState(() {
+            _selectedHeight = next;
+          });
+          if (_heightController.hasClients) {
+            _heightController.animateToItem(
+              next - _minHeight,
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOut,
+            );
+          }
+        }
+        _scheduleDebouncedSpeech(() => '$_selectedHeightセンチ');
+        break;
+
+      case 1:
+        // 体重（ドラムロール）
+        final delta = isUp ? 1.0 : -1.0;
+        final next = (_selectedWeight + delta).clamp(
+          _minWeight.toDouble(),
+          _maxWeight.toDouble(),
+        );
+        if (next != _selectedWeight) {
+          setState(() {
+            _selectedWeight = next;
+          });
+          if (_weightController.hasClients) {
+            _weightController.animateToItem(
+              (next - _minWeight).toInt(),
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOut,
+            );
+          }
+        }
+        _scheduleDebouncedSpeech(() => '${_selectedWeight.toInt()}キロ');
+        break;
+
+      case 2:
+        // 年齢（5歳区切り）
+        final curIdx = _ageOptions.indexOf(_selectedAgeGroup);
+        final delta = isUp ? 1 : -1;
+        final nextIdx = (curIdx + delta).clamp(0, _ageOptions.length - 1);
+        setState(() {
+          _selectedAgeGroup = _ageOptions[nextIdx];
+        });
+        _scheduleDebouncedSpeech(() => _selectedAgeGroup);
+        break;
+
+      case 3:
+        // 性別
+        final curIdx = _genderOptions.indexOf(_selectedGender);
+        final delta = isUp ? 1 : -1;
+        final nextIdx = (curIdx + delta).clamp(0, _genderOptions.length - 1);
+        setState(() {
+          _selectedGender = _genderOptions[nextIdx];
+        });
+        _scheduleDebouncedSpeech(() => _selectedGender);
+        break;
+
+      case 4:
+        // 目的カテゴリ分岐
+        setState(() {
+          _selectedAimCategory = _selectedAimCategory == AimCategory.bodyType
+              ? AimCategory.sports
+              : AimCategory.bodyType;
+          _selectedGoal = _selectedAimCategory == AimCategory.bodyType
+              ? _bodyTypeOptions.first
+              : _sportsOptions.first;
+        });
+        _scheduleDebouncedSpeech(() => _selectedAimCategory.label);
+        break;
+
+      case 5:
+        // 目的詳細
+        final options = _selectedAimCategory == AimCategory.bodyType
+            ? _bodyTypeOptions
+            : _sportsOptions;
+        final curIdx = options.indexOf(_selectedGoal);
+        final delta = isUp ? 1 : -1;
+        final nextIdx = (curIdx + delta).clamp(0, options.length - 1);
+        setState(() {
+          _selectedGoal = options[nextIdx];
+        });
+        _scheduleDebouncedSpeech(
+          () => _cleanSpeechText(_selectedGoal),
+        );
+        break;
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // 画面遷移ハンドラ
+  // --------------------------------------------------------------------------
+
+  void _goToNextStep() {
+    _debounceTimer?.cancel();
+    if (_currentStep < _totalSteps - 1) {
+      setState(() {
+        _currentStep++;
+        if (_currentStep == 5) {
+          if (_selectedAimCategory == AimCategory.bodyType) {
+            if (!_bodyTypeOptions.contains(_selectedGoal)) {
+              _selectedGoal = _bodyTypeOptions.first;
+            }
+          } else {
+            if (!_sportsOptions.contains(_selectedGoal)) {
+              _selectedGoal = _sportsOptions.first;
+            }
+          }
+        }
+      });
+      _speakStepIntro();
+    } else {
+      _finishOnboarding();
+    }
+  }
+
+  void _goToPreviousStep() {
+    _debounceTimer?.cancel();
+    if (_currentStep > 0) {
+      setState(() {
+        _currentStep--;
+      });
+      _speakStepIntro();
+    }
+  }
+
+  Future<void> _finishOnboarding() async {
+    _debounceTimer?.cancel();
+    await widget.speechService?.stopListening();
+    final profile = UserProfile(
+      heightCm: _selectedHeight,
+      weightKg: _selectedWeight,
+      ageGroup: _selectedAgeGroup,
+      gender: _selectedGender,
+      aimCategory: _selectedAimCategory,
+      targetGoal: _selectedGoal,
+    );
+
+    await widget.storageService.saveUserProfile(profile);
+    if (!mounted) return;
+    widget.ttsService?.speak('設定が完了しました。チュートリアルを開始します。');
+    widget.onCompleted(profile);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.surface,
+        elevation: 0,
+        title: Text(
+          '初期設定 (${_currentStep + 1} / $_totalSteps)',
+          key: const Key('onboarding_step_indicator'),
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: AppColors.tealAccent,
+          ),
+        ),
+        centerTitle: true,
+        leading: _currentStep > 0
+            ? IconButton(
+                key: const Key('onboarding_appbar_back_button'),
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () {
+                  widget.soundEffectService?.playBeep();
+                  _goToPreviousStep();
+                },
+              )
+            : null,
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // 1. 画面上部：質問・トピック
+              _buildTopHeader(),
+
+              const SizedBox(height: 8),
+
+              // 音声認識状態バッジ
+              _buildVoiceInputBadge(),
+
+              const SizedBox(height: 8),
+
+              // 2. 画面中央：イラスト・画像（プレースホルダー）
+              Expanded(
+                flex: 4,
+                child: Center(
+                  child: _buildCenterImage(),
+                ),
+              ),
+
+              const SizedBox(height: 8),
+
+              // 3. 画面下部：選択肢（ドラムロールまたはボタングループ）
+              Expanded(
+                flex: 5,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  padding: const EdgeInsets.all(12),
+                  child: _buildChoicesSection(),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              // 画面最下部：ナビゲーションボタン（戻る・次へ）
+              _buildBottomNavigation(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 音声認識バッジ
+  Widget _buildVoiceInputBadge() {
+    return Center(
+      child: AnimatedContainer(
+        key: const Key('voice_input_indicator'),
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: _isListening
+              ? AppColors.tealAccent.withValues(alpha: 0.12)
+              : AppColors.surfaceVariant,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: _isListening
+                ? AppColors.tealAccent.withValues(alpha: 0.5)
+                : AppColors.border,
+            width: 1.2,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              _isListening ? Icons.mic : Icons.mic_none,
+              color: _isListening ? AppColors.tealAccent : AppColors.textTertiary,
+              size: 16,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              _lastRecognizedWords != null
+                  ? '「$_lastRecognizedWords」を認識'
+                  : (_isListening ? '🎙️ お話しください（声で操作可能）' : '音声待機中'),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: _isListening
+                    ? AppColors.tealAccent
+                    : AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --------------------------------------------------------------------------
+  // 1. 画面上部（質問・トピック）
+  // --------------------------------------------------------------------------
+  Widget _buildTopHeader() {
+    String title;
+    String subtitle;
+
+    switch (_currentStep) {
+      case 0:
+        title = '身長を教えてください';
+        subtitle = 'ドラムロール操作または声で「172センチ」と話してください';
+        break;
+      case 1:
+        title = '体重を教えてください';
+        subtitle = 'ドラムロール操作または声で「65キロ」と話してください';
+        break;
+      case 2:
+        title = '年齢を教えてください';
+        subtitle = '選択または声で「20代」「30代」と話してください';
+        break;
+      case 3:
+        title = '性別を教えてください';
+        subtitle = '選択または声で「男性」「女性」と話してください';
+        break;
+      case 4:
+        title = '目標の設定基準';
+        subtitle = '声で「体型」「スポーツ」とお話しください';
+        break;
+      case 5:
+        if (_selectedAimCategory == AimCategory.bodyType) {
+          title = '目指す体型を教えてください';
+          subtitle = '声で「細マッチョ」「バルクアップ」等とお話しください';
+        } else {
+          title = '行っているスポーツを教えてください';
+          subtitle = '声で「サッカー」「ランニング」等とお話しください';
+        }
+        break;
+      default:
+        title = '';
+        subtitle = '';
+    }
+
+    return Column(
+      children: [
+        Text(
+          title,
+          key: const Key('question_title'),
+          style: const TextStyle(
+            fontSize: 21,
+            fontWeight: FontWeight.bold,
+            color: AppColors.textPrimary,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          subtitle,
+          key: const Key('question_subtitle'),
+          style: const TextStyle(
+            fontSize: 12,
+            color: AppColors.textSecondary,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  // --------------------------------------------------------------------------
+  // 2. 画面中央（イラスト・画像プレースホルダー）
+  // --------------------------------------------------------------------------
+  Widget _buildCenterImage() {
+    switch (_currentStep) {
+      case 0:
+        return const QuestionPlaceholderImage(
+          icon: Icons.height,
+          label: '身長',
+          accentColor: AppColors.tealAccent,
+        );
+      case 1:
+        return const QuestionPlaceholderImage(
+          icon: Icons.monitor_weight_outlined,
+          label: '体重',
+          accentColor: AppColors.primaryAccent,
+        );
+      case 2:
+        return const QuestionPlaceholderImage(
+          icon: Icons.calendar_month_outlined,
+          label: '年齢',
+          accentColor: AppColors.tealAccent,
+        );
+      case 3:
+        return const QuestionPlaceholderImage(
+          icon: Icons.person_outline,
+          label: '性別',
+          accentColor: AppColors.primaryAccent,
+        );
+      case 4:
+        return const QuestionPlaceholderImage(
+          icon: Icons.flag_outlined,
+          label: '目的設定',
+          accentColor: AppColors.tealAccent,
+        );
+      case 5:
+        return QuestionPlaceholderImage(
+          icon: _selectedAimCategory == AimCategory.bodyType
+              ? Icons.accessibility_new_outlined
+              : Icons.sports_soccer_outlined,
+          label: _selectedAimCategory.label,
+          accentColor: AppColors.primaryAccent,
+        );
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // 3. 画面下部（選択肢エリア）
+  // --------------------------------------------------------------------------
+  Widget _buildChoicesSection() {
+    switch (_currentStep) {
+      case 0:
+        return _buildHeightPicker();
+      case 1:
+        return _buildWeightPicker();
+      case 2:
+        return _buildAgeChoices();
+      case 3:
+        return _buildGenderChoices();
+      case 4:
+        return _buildAimCategoryChoices();
+      case 5:
+        return _buildGoalChoices();
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  /// 身長ドラムロール（CupertinoPicker）
+  Widget _buildHeightPicker() {
+    return Column(
+      children: [
+        Expanded(
+          child: CupertinoPicker.builder(
+            key: const Key('height_picker'),
+            scrollController: _heightController,
+            itemExtent: 44,
+            diameterRatio: 1.2,
+            selectionOverlay: Container(
+              decoration: BoxDecoration(
+                border: Border.symmetric(
+                  horizontal: BorderSide(
+                    color: AppColors.tealAccent.withValues(alpha: 0.6),
+                    width: 1.5,
+                  ),
+                ),
+              ),
+            ),
+            childCount: _maxHeight - _minHeight + 1,
+            onSelectedItemChanged: (index) {
+              setState(() {
+                _selectedHeight = _minHeight + index;
+              });
+              _scheduleDebouncedSpeech(() => '$_selectedHeightセンチ');
+            },
+            itemBuilder: (context, index) {
+              final val = _minHeight + index;
+              final isSelected = val == _selectedHeight;
+              return Center(
+                child: Text(
+                  '$val cm',
+                  style: TextStyle(
+                    fontSize: isSelected ? 24 : 18,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    color: isSelected ? AppColors.tealAccent : AppColors.textTertiary,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 体重ドラムロール（CupertinoPicker）
+  Widget _buildWeightPicker() {
+    return Column(
+      children: [
+        Expanded(
+          child: CupertinoPicker.builder(
+            key: const Key('weight_picker'),
+            scrollController: _weightController,
+            itemExtent: 44,
+            diameterRatio: 1.2,
+            selectionOverlay: Container(
+              decoration: BoxDecoration(
+                border: Border.symmetric(
+                  horizontal: BorderSide(
+                    color: AppColors.primaryAccent.withValues(alpha: 0.6),
+                    width: 1.5,
+                  ),
+                ),
+              ),
+            ),
+            childCount: _maxWeight - _minWeight + 1,
+            onSelectedItemChanged: (index) {
+              setState(() {
+                _selectedWeight = (_minWeight + index).toDouble();
+              });
+              _scheduleDebouncedSpeech(() => '${_selectedWeight.toInt()}キロ');
+            },
+            itemBuilder: (context, index) {
+              final val = _minWeight + index;
+              final isSelected = val.toDouble() == _selectedWeight;
+              return Center(
+                child: Text(
+                  '$val kg',
+                  style: TextStyle(
+                    fontSize: isSelected ? 24 : 18,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    color: isSelected ? AppColors.primaryAccent : AppColors.textTertiary,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 年齢選択ボタングリッド（5歳区切り）
+  Widget _buildAgeChoices() {
+    return GridView.builder(
+      key: const Key('age_options_grid'),
+      itemCount: _ageOptions.length,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 8,
+        crossAxisSpacing: 8,
+        childAspectRatio: 2.8,
+      ),
+      itemBuilder: (context, index) {
+        final option = _ageOptions[index];
+        final isSelected = option == _selectedAgeGroup;
+        return _buildChoiceButton(
+          label: option,
+          isSelected: isSelected,
+          onTap: () {
+            widget.soundEffectService?.playBeep();
+            setState(() {
+              _selectedAgeGroup = option;
+            });
+            _scheduleDebouncedSpeech(() => option);
+          },
+        );
+      },
+    );
+  }
+
+  /// 性別選択ボタン一覧
+  Widget _buildGenderChoices() {
+    return ListView.separated(
+      key: const Key('gender_options_list'),
+      itemCount: _genderOptions.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 10),
+      itemBuilder: (context, index) {
+        final option = _genderOptions[index];
+        final isSelected = option == _selectedGender;
+        return _buildChoiceButton(
+          label: option,
+          isSelected: isSelected,
+          onTap: () {
+            widget.soundEffectService?.playBeep();
+            setState(() {
+              _selectedGender = option;
+            });
+            _scheduleDebouncedSpeech(() => option);
+          },
+        );
+      },
+    );
+  }
+
+  /// 目的カテゴリ選択ボタン（体型 vs スポーツ）
+  Widget _buildAimCategoryChoices() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _buildLargeChoiceCard(
+          title: '目指す体型から選ぶ',
+          subtitle: '細マッチョ、筋肥大、引き締めなど',
+          icon: Icons.accessibility_new_outlined,
+          isSelected: _selectedAimCategory == AimCategory.bodyType,
+          onTap: () {
+            widget.soundEffectService?.playBeep();
+            setState(() {
+              _selectedAimCategory = AimCategory.bodyType;
+              _selectedGoal = _bodyTypeOptions.first;
+            });
+            _scheduleDebouncedSpeech(() => '目指す体型から選ぶ');
+          },
+        ),
+        const SizedBox(height: 14),
+        _buildLargeChoiceCard(
+          title: 'やっているスポーツから選ぶ',
+          subtitle: 'ランニング、サッカー、野球など競技に合わせる',
+          icon: Icons.sports_soccer_outlined,
+          isSelected: _selectedAimCategory == AimCategory.sports,
+          onTap: () {
+            widget.soundEffectService?.playBeep();
+            setState(() {
+              _selectedAimCategory = AimCategory.sports;
+              _selectedGoal = _sportsOptions.first;
+            });
+            _scheduleDebouncedSpeech(() => 'やっているスポーツから選ぶ');
+          },
+        ),
+      ],
+    );
+  }
+
+  /// 目的詳細選択ボタン一覧（体型またはスポーツ）
+  Widget _buildGoalChoices() {
+    final options = _selectedAimCategory == AimCategory.bodyType
+        ? _bodyTypeOptions
+        : _sportsOptions;
+
+    return ListView.separated(
+      key: const Key('goal_options_list'),
+      itemCount: options.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
+      itemBuilder: (context, index) {
+        final option = options[index];
+        final isSelected = option == _selectedGoal;
+        return _buildChoiceButton(
+          label: option,
+          isSelected: isSelected,
+          onTap: () {
+            widget.soundEffectService?.playBeep();
+            setState(() {
+              _selectedGoal = option;
+            });
+            _scheduleDebouncedSpeech(() => _cleanSpeechText(option));
+          },
+        );
+      },
+    );
+  }
+
+  /// 選択肢ボタン共通コンポーネント
+  Widget _buildChoiceButton({
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        key: Key('choice_$label'),
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? AppColors.tealAccent.withValues(alpha: 0.18)
+                : AppColors.surfaceVariant,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isSelected ? AppColors.tealAccent : AppColors.border,
+              width: isSelected ? 2.0 : 1.0,
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+              color: isSelected ? AppColors.tealAccent : AppColors.textPrimary,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 目的カテゴリ用の大判選択カード
+  Widget _buildLargeChoiceCard({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        key: Key('aim_choice_$title'),
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? AppColors.tealAccent.withValues(alpha: 0.18)
+                : AppColors.surfaceVariant,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected ? AppColors.tealAccent : AppColors.border,
+              width: isSelected ? 2.0 : 1.0,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                size: 32,
+                color: isSelected ? AppColors.tealAccent : AppColors.textSecondary,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: isSelected
+                            ? AppColors.tealAccent
+                            : AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (isSelected)
+                const Icon(
+                  Icons.check_circle,
+                  color: AppColors.tealAccent,
+                  size: 22,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --------------------------------------------------------------------------
+  // 画面最下部：ナビゲーションボタン（戻る・次へ）
+  // --------------------------------------------------------------------------
+  Widget _buildBottomNavigation() {
+    final isLastStep = _currentStep == _totalSteps - 1;
+
+    return Row(
+      children: [
+        if (_currentStep > 0) ...[
+          Expanded(
+            flex: 2,
+            child: OutlinedButton(
+              key: const Key('onboarding_back_button'),
+              onPressed: () {
+                widget.soundEffectService?.playBeep();
+                _goToPreviousStep();
+              },
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.textSecondary,
+                side: const BorderSide(color: AppColors.border),
+                minimumSize: const Size.fromHeight(48),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: const Text('戻る'),
+            ),
+          ),
+          const SizedBox(width: 12),
+        ],
+        Expanded(
+          flex: 3,
+          child: ElevatedButton(
+            key: const Key('onboarding_next_button'),
+            onPressed: () {
+              widget.soundEffectService?.playBeep();
+              _goToNextStep();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: isLastStep
+                  ? AppColors.primaryAccent
+                  : AppColors.tealAccent,
+              foregroundColor: Colors.black,
+              minimumSize: const Size.fromHeight(48),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              elevation: 2,
+            ),
+            child: Text(
+              isLastStep ? '完了してチュートリアルへ' : '次へ',
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
