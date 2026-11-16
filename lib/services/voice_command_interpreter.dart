@@ -39,10 +39,16 @@ class AdjustWeightAction extends VoiceAction {
   const AdjustWeightAction(this.delta);
 }
 
-/// 年齢選択アクション
-class SelectAgeAction extends VoiceAction {
-  final String ageGroup;
-  const SelectAgeAction(this.ageGroup);
+/// 生まれ年の直接数値指定アクション
+class SetBirthYearAction extends VoiceAction {
+  final int birthYear;
+  const SetBirthYearAction(this.birthYear);
+}
+
+/// 生まれ年の増減アクション（+1 / -1 等）
+class AdjustBirthYearAction extends VoiceAction {
+  final int delta;
+  const AdjustBirthYearAction(this.delta);
 }
 
 /// 性別選択アクション
@@ -132,7 +138,7 @@ abstract final class VoiceCommandInterpreter {
       case 1:
         return _interpretWeight(normalized);
       case 2:
-        return _interpretAge(normalized);
+        return _interpretBirthYear(normalized);
       case 3:
         return _interpretGender(normalized);
       case 4:
@@ -174,38 +180,30 @@ abstract final class VoiceCommandInterpreter {
     return UnknownVoiceAction(text);
   }
 
-  /// Step 2: 年齢解析
-  static VoiceAction _interpretAge(String text) {
-    if (text.contains('10') || text.contains('15') || text.contains('19')) {
-      return const SelectAgeAction('〜19歳');
+  /// Step 2: 生まれ年解析
+  static VoiceAction _interpretBirthYear(String text) {
+    if (_hasPlus(text)) return const AdjustBirthYearAction(1);
+    if (_hasMinus(text)) return const AdjustBirthYearAction(-1);
+
+    final match4 = RegExp(r'(\d{4})').firstMatch(text);
+    if (match4 != null) {
+      final val = int.tryParse(match4.group(1)!);
+      if (val != null && val >= 1940 && val <= 2015) {
+        return SetBirthYearAction(val);
+      }
     }
-    if (text.contains('20〜24') || text.contains('20代前半') || text.contains('20') || text.contains('21') || text.contains('22') || text.contains('23') || text.contains('24')) {
-      return const SelectAgeAction('20〜24歳');
+
+    final match2 = RegExp(r'(\d{2})年').firstMatch(text);
+    if (match2 != null) {
+      final shortYear = int.tryParse(match2.group(1)!);
+      if (shortYear != null) {
+        final fullYear = shortYear <= 15 ? 2000 + shortYear : 1900 + shortYear;
+        if (fullYear >= 1940 && fullYear <= 2015) {
+          return SetBirthYearAction(fullYear);
+        }
+      }
     }
-    if (text.contains('25〜29') || text.contains('20代後半') || text.contains('25') || text.contains('26') || text.contains('27') || text.contains('28') || text.contains('29')) {
-      return const SelectAgeAction('25〜29歳');
-    }
-    if (text.contains('30〜34') || text.contains('30代前半') || text.contains('30') || text.contains('31') || text.contains('32') || text.contains('33') || text.contains('34')) {
-      return const SelectAgeAction('30〜34歳');
-    }
-    if (text.contains('35〜39') || text.contains('30代後半') || text.contains('35') || text.contains('36') || text.contains('37') || text.contains('38') || text.contains('39')) {
-      return const SelectAgeAction('35〜39歳');
-    }
-    if (text.contains('40〜44') || text.contains('40代前半') || text.contains('40') || text.contains('41') || text.contains('42') || text.contains('43') || text.contains('44')) {
-      return const SelectAgeAction('40〜44歳');
-    }
-    if (text.contains('45〜49') || text.contains('40代後半') || text.contains('45') || text.contains('46') || text.contains('47') || text.contains('48') || text.contains('49')) {
-      return const SelectAgeAction('45〜49歳');
-    }
-    if (text.contains('50〜54') || text.contains('50代前半') || text.contains('50') || text.contains('51') || text.contains('52') || text.contains('53') || text.contains('54')) {
-      return const SelectAgeAction('50〜54歳');
-    }
-    if (text.contains('55〜59') || text.contains('50代後半') || text.contains('55') || text.contains('56') || text.contains('57') || text.contains('58') || text.contains('59')) {
-      return const SelectAgeAction('55〜59歳');
-    }
-    if (text.contains('60') || text.contains('65') || text.contains('70')) {
-      return const SelectAgeAction('60歳以上');
-    }
+
     return UnknownVoiceAction(text);
   }
 

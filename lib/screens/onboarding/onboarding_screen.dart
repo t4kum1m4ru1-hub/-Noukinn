@@ -15,7 +15,8 @@ import '../../main.dart'
         AdjustHeightAction,
         SetWeightAction,
         AdjustWeightAction,
-        SelectAgeAction,
+        SetBirthYearAction,
+        AdjustBirthYearAction,
         SelectGenderAction,
         SelectAimCategoryAction,
         SelectGoalAction,
@@ -63,20 +64,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   late double _selectedWeight;
   late final FixedExtentScrollController _weightController;
 
-  // 年齢選択肢（5歳区切り）
-  static const List<String> _ageOptions = [
-    '〜19歳',
-    '20〜24歳',
-    '25〜29歳',
-    '30〜34歳',
-    '35〜39歳',
-    '40〜44歳',
-    '45〜49歳',
-    '50〜54歳',
-    '55〜59歳',
-    '60歳以上',
-  ];
-  String _selectedAgeGroup = '20〜24歳';
+  // 生まれ年ドラムロール定義（1940年 〜 2015年）
+  static const int _minBirthYear = 1940;
+  static const int _maxBirthYear = 2015;
+  late int _selectedBirthYear;
+  late final FixedExtentScrollController _birthYearController;
 
   // 性別選択肢
   static const List<String> _genderOptions = [
@@ -123,11 +115,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     super.initState();
     _selectedHeight = 170;
     _selectedWeight = 65.0;
+    _selectedBirthYear = 2000;
     _heightController = FixedExtentScrollController(
       initialItem: _selectedHeight - _minHeight,
     );
     _weightController = FixedExtentScrollController(
       initialItem: (_selectedWeight - _minWeight).toInt(),
+    );
+    _birthYearController = FixedExtentScrollController(
+      initialItem: _selectedBirthYear - _minBirthYear,
     );
 
     // イヤホン・物理メディアキーリスナーの登録
@@ -147,6 +143,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     _debounceTimer?.cancel();
     _heightController.dispose();
     _weightController.dispose();
+    _birthYearController.dispose();
     super.dispose();
   }
 
@@ -175,7 +172,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         intro = '体重を教えてください。現在、${_selectedWeight.toInt()}キロです';
         break;
       case 2:
-        intro = '年齢を教えてください。現在、$_selectedAgeGroupです';
+        intro = '生まれた年を教えてください。現在、$_selectedBirthYear年です';
         break;
       case 3:
         intro = '性別を教えてください。現在、$_selectedGenderです';
@@ -282,12 +279,23 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         _handleVolume(isUp: delta > 0);
         break;
 
-      case SelectAgeAction(:final ageGroup):
+      case SetBirthYearAction(:final birthYear):
         widget.soundEffectService?.playBeep();
         setState(() {
-          _selectedAgeGroup = ageGroup;
+          _selectedBirthYear = birthYear;
         });
-        _scheduleDebouncedSpeech(() => ageGroup);
+        if (_birthYearController.hasClients) {
+          _birthYearController.animateToItem(
+            birthYear - _minBirthYear,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+          );
+        }
+        _scheduleDebouncedSpeech(() => '$birthYear年');
+        break;
+
+      case AdjustBirthYearAction(:final delta):
+        _handleVolume(isUp: delta > 0);
         break;
 
       case SelectGenderAction(:final gender):
@@ -418,14 +426,22 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         break;
 
       case 2:
-        // 年齢（5歳区切り）
-        final curIdx = _ageOptions.indexOf(_selectedAgeGroup);
+        // 生まれ年（ドラムロール）
         final delta = isUp ? 1 : -1;
-        final nextIdx = (curIdx + delta).clamp(0, _ageOptions.length - 1);
-        setState(() {
-          _selectedAgeGroup = _ageOptions[nextIdx];
-        });
-        _scheduleDebouncedSpeech(() => _selectedAgeGroup);
+        final next = (_selectedBirthYear + delta).clamp(_minBirthYear, _maxBirthYear);
+        if (next != _selectedBirthYear) {
+          setState(() {
+            _selectedBirthYear = next;
+          });
+          if (_birthYearController.hasClients) {
+            _birthYearController.animateToItem(
+              next - _minBirthYear,
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOut,
+            );
+          }
+        }
+        _scheduleDebouncedSpeech(() => '$_selectedBirthYear年');
         break;
 
       case 3:
@@ -513,7 +529,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final profile = UserProfile(
       heightCm: _selectedHeight,
       weightKg: _selectedWeight,
-      ageGroup: _selectedAgeGroup,
+      birthYear: _selectedBirthYear,
       gender: _selectedGender,
       aimCategory: _selectedAimCategory,
       targetGoal: _selectedGoal,
@@ -667,8 +683,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         subtitle = 'ドラムロール操作または声で「65キロ」と話してください';
         break;
       case 2:
-        title = '年齢を教えてください';
-        subtitle = '選択または声で「20代」「30代」と話してください';
+        title = '生まれた年を教えてください';
+        subtitle = 'ドラムロール操作または声で「2000年」と話してください';
         break;
       case 3:
         title = '性別を教えてください';
@@ -738,7 +754,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       case 2:
         return const QuestionPlaceholderImage(
           icon: Icons.calendar_month_outlined,
-          label: '年齢',
+          label: '生まれた年',
           accentColor: AppColors.tealAccent,
         );
       case 3:
@@ -776,7 +792,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       case 1:
         return _buildWeightPicker();
       case 2:
-        return _buildAgeChoices();
+        return _buildBirthYearPicker();
       case 3:
         return _buildGenderChoices();
       case 4:
@@ -882,32 +898,50 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  /// 年齢選択ボタングリッド（5歳区切り）
-  Widget _buildAgeChoices() {
-    return GridView.builder(
-      key: const Key('age_options_grid'),
-      itemCount: _ageOptions.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        mainAxisSpacing: 8,
-        crossAxisSpacing: 8,
-        childAspectRatio: 2.8,
-      ),
-      itemBuilder: (context, index) {
-        final option = _ageOptions[index];
-        final isSelected = option == _selectedAgeGroup;
-        return _buildChoiceButton(
-          label: option,
-          isSelected: isSelected,
-          onTap: () {
-            widget.soundEffectService?.playBeep();
-            setState(() {
-              _selectedAgeGroup = option;
-            });
-            _scheduleDebouncedSpeech(() => option);
-          },
-        );
-      },
+  /// 生まれ年ドラムロール（CupertinoPicker）
+  Widget _buildBirthYearPicker() {
+    return Column(
+      children: [
+        Expanded(
+          child: CupertinoPicker.builder(
+            key: const Key('birth_year_picker'),
+            scrollController: _birthYearController,
+            itemExtent: 44,
+            diameterRatio: 1.2,
+            selectionOverlay: Container(
+              decoration: BoxDecoration(
+                border: Border.symmetric(
+                  horizontal: BorderSide(
+                    color: AppColors.tealAccent.withValues(alpha: 0.6),
+                    width: 1.5,
+                  ),
+                ),
+              ),
+            ),
+            childCount: _maxBirthYear - _minBirthYear + 1,
+            onSelectedItemChanged: (index) {
+              setState(() {
+                _selectedBirthYear = _minBirthYear + index;
+              });
+              _scheduleDebouncedSpeech(() => '$_selectedBirthYear年');
+            },
+            itemBuilder: (context, index) {
+              final val = _minBirthYear + index;
+              final isSelected = val == _selectedBirthYear;
+              return Center(
+                child: Text(
+                  '$val 年',
+                  style: TextStyle(
+                    fontSize: isSelected ? 24 : 18,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    color: isSelected ? AppColors.tealAccent : AppColors.textTertiary,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 

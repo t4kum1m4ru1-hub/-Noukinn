@@ -49,7 +49,7 @@ void main() {
       const original = UserProfile(
         heightCm: 175,
         weightKg: 70.5,
-        ageGroup: '30〜34歳',
+        birthYear: 1995,
         gender: '男性',
         aimCategory: AimCategory.bodyType,
         targetGoal: '細マッチョ（引き締め＆筋力）',
@@ -60,7 +60,7 @@ void main() {
 
       expect(restored.heightCm, original.heightCm);
       expect(restored.weightKg, original.weightKg);
-      expect(restored.ageGroup, original.ageGroup);
+      expect(restored.birthYear, original.birthYear);
       expect(restored.gender, original.gender);
       expect(restored.aimCategory, original.aimCategory);
       expect(restored.targetGoal, original.targetGoal);
@@ -74,7 +74,7 @@ void main() {
       const profile = UserProfile(
         heightCm: 168,
         weightKg: 62.0,
-        ageGroup: '25〜29歳',
+        birthYear: 1998,
         gender: '女性',
         aimCategory: AimCategory.sports,
         targetGoal: 'ランニング・陸上',
@@ -160,14 +160,22 @@ void main() {
       expect((actUp as AdjustWeightAction).delta, 1.0);
     });
 
-    test('年代・性別・目的の音声が適切に解析されること', () {
-      final actAge = VoiceCommandInterpreter.interpret(
+    test('生まれ年・性別・目的の音声が適切に解析されること', () {
+      final actBirthYear = VoiceCommandInterpreter.interpret(
         step: 2,
-        speech: '30代前半',
+        speech: '1995年',
         currentAimCategory: AimCategory.bodyType,
       );
-      expect(actAge, isA<SelectAgeAction>());
-      expect((actAge as SelectAgeAction).ageGroup, '30〜34歳');
+      expect(actBirthYear, isA<SetBirthYearAction>());
+      expect((actBirthYear as SetBirthYearAction).birthYear, 1995);
+
+      final actBirthYearUp = VoiceCommandInterpreter.interpret(
+        step: 2,
+        speech: '増やして',
+        currentAimCategory: AimCategory.bodyType,
+      );
+      expect(actBirthYearUp, isA<AdjustBirthYearAction>());
+      expect((actBirthYearUp as AdjustBirthYearAction).delta, 1);
 
       final actGender = VoiceCommandInterpreter.interpret(
         step: 3,
@@ -327,13 +335,14 @@ void main() {
       fakeSpeech.simulateSpeech('次へ');
       await tester.pumpAndSettle();
 
-      // Step 2: 年齢
+      // Step 2: 生まれ年
       expect(find.text('初期設定 (3 / 6)'), findsOneWidget);
 
-      // 「30代前半」と発声
-      fakeSpeech.simulateSpeech('30代前半');
+      // 「1995年」と発声
+      fakeSpeech.simulateSpeech('1995年');
       await tester.pump(const Duration(milliseconds: 750));
-      expect(fakeTts.lastSpoken, '30〜34歳');
+      expect(find.text('1995 年'), findsOneWidget);
+      expect(fakeTts.lastSpoken, '1995年');
 
       // 「次へ」と発声
       fakeSpeech.simulateSpeech('次へ');
@@ -379,7 +388,7 @@ void main() {
       expect(completedProfile, isNotNull);
       expect(completedProfile!.heightCm, 175);
       expect(completedProfile!.weightKg, 68.0);
-      expect(completedProfile!.ageGroup, '30〜34歳');
+      expect(completedProfile!.birthYear, 1995);
       expect(completedProfile!.gender, '女性');
       expect(completedProfile!.aimCategory, AimCategory.sports);
       expect(completedProfile!.targetGoal, 'サッカー・フットサル');
