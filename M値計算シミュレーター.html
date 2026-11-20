@@ -1,0 +1,3200 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="artifact-type" content="tool">
+  <meta name="design-style" content="vitals">
+  <title>のう筋 M値パーソナライズメニュー シミュレーター</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&family=Figtree:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@1.43.0/dist/umd/lucide.min.js"></script>
+  <style>
+    :root {
+      color-scheme: light;
+
+      /* Page and surfaces (Vitals) */
+      --background: #ffffff;
+      --surface-container-low: #f1f7f8;
+      --surface-container: #e3f1f3;
+      --surface-container-high: #d5e9ec;
+
+      /* Text */
+      --on-surface: #1b2b33;
+      --on-surface-variant: #46585f;
+
+      /* Rules */
+      --outline: #7b9198;
+      --outline-variant: #d5e3e5;
+
+      /* Accents */
+      --primary: #0f7c8a;
+      --on-primary: #ffffff;
+      --primary-container: #e3f1f3;
+      --on-primary-container: #0a5560;
+      --secondary: #1d5e3a;
+      --tertiary: #2e7d4f;
+      --error: #b3261e;
+      --on-error: #ffffff;
+
+      /* Data series */
+      --data-1: #0f7c8a;
+      --data-2: #2e7d4f;
+      --data-3: #b86e00;
+      --data-4: #5c5fb0;
+      --data-context: #b8c7ca;
+
+      /* Fonts */
+      --font-headline: 'Noto Sans JP', 'Figtree', sans-serif;
+      --font-body: 'Noto Sans JP', 'Atkinson Hyperlegible', sans-serif;
+      --font-label: 'Noto Sans JP', 'Figtree', sans-serif;
+
+      /* Shape */
+      --rounded: 0.625rem;
+      --rounded-lg: 0.875rem;
+      --rounded-full: 9999px;
+
+      /* Style effects */
+      --top-bar: 6px solid var(--primary);
+      --status-bar-width: 4px;
+      --card-border: 1px solid var(--outline-variant);
+      --card-lift: 0 1px 2px rgb(27 43 51 / 0.05), 0 6px 16px rgb(27 43 51 / 0.05);
+
+      /* Shared tokens */
+      --positive: var(--tertiary);
+      --warning: var(--data-3);
+      --focus: var(--primary);
+
+      /* Type scale (Focused Tool) */
+      --display-size: clamp(1.55rem, 1.25rem + 1vw, 2.05rem);
+      --headline-size: clamp(1.15rem, 1.05rem + 0.4vw, 1.375rem);
+      --subhead-size: clamp(1rem, 0.96rem + 0.2vw, 1.125rem);
+      --body-size: clamp(0.9375rem, 0.9rem + 0.12vw, 0.98rem);
+      --label-size: 0.75rem;
+
+      /* Spacing scale */
+      --space-xs: 0.25rem;
+      --space-sm: 0.5rem;
+      --space-md: 1rem;
+      --space-lg: 1.5rem;
+      --space-xl: 2.5rem;
+      --space-2xl: 4rem;
+      --space-3xl: 6rem;
+
+      /* Motion */
+      --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+      --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+      --dur-micro: 120ms;
+      --dur-short: 220ms;
+      --dur-long: 420ms;
+    }
+
+    /* Base reset */
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body {
+      overflow-x: clip;
+      margin: 0;
+      padding: 0;
+      background: var(--surface-container-low);
+      color: var(--on-surface);
+      font-family: var(--font-body);
+      font-size: var(--body-size);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    header { position: static !important; }
+    button, input, select, textarea {
+      font-family: inherit;
+      font-size: inherit;
+      color: inherit;
+    }
+
+    .page-shell {
+      border-top: var(--top-bar);
+      min-height: 100vh;
+    }
+
+    .page-grid {
+      display: grid;
+      gap: var(--space-lg);
+      padding: var(--space-lg);
+      max-width: 1360px;
+      margin: 0 auto;
+      overflow: hidden;
+    }
+    .page-grid * { min-width: 0; }
+
+    /* Focus rings */
+    :focus-visible {
+      outline: 2px solid var(--focus);
+      outline-offset: 2px;
+    }
+
+    /* Header */
+    .app-header {
+      background: var(--background);
+      border: var(--card-border);
+      border-radius: var(--rounded-lg);
+      padding: var(--space-lg);
+      box-shadow: var(--card-lift);
+      display: grid;
+      gap: var(--space-md);
+    }
+
+    .header-top {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: var(--space-md);
+    }
+
+    .kicker {
+      font-family: var(--font-label);
+      font-size: var(--label-size);
+      font-weight: 600;
+      color: var(--on-primary-container);
+      background: var(--primary-container);
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-xs);
+      padding: var(--space-xs) var(--space-sm);
+      border-radius: var(--rounded-full);
+      margin-bottom: var(--space-sm);
+    }
+
+    .title {
+      font-family: var(--font-headline);
+      font-size: var(--display-size);
+      font-weight: 800;
+      letter-spacing: 0;
+      line-height: 1.2;
+      color: var(--on-surface);
+      margin: 0;
+    }
+
+    .lede {
+      font-size: var(--body-size);
+      line-height: 1.6;
+      color: var(--on-surface-variant);
+      max-width: 68ch;
+      margin: var(--space-sm) 0 0;
+    }
+
+    .header-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-sm);
+      align-items: center;
+    }
+
+    .preset-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-sm);
+      padding-top: var(--space-md);
+      border-top: 1px solid var(--outline-variant);
+    }
+
+    .preset-label {
+      font-family: var(--font-label);
+      font-size: var(--label-size);
+      font-weight: 600;
+      color: var(--on-surface-variant);
+      margin-right: var(--space-xs);
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-xs);
+      min-height: 44px;
+      padding: var(--space-xs) var(--space-md);
+      border-radius: var(--rounded);
+      font-family: var(--font-label);
+      font-weight: 600;
+      font-size: 0.875rem;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: background-color var(--dur-micro) var(--ease-out), border-color var(--dur-micro) var(--ease-out), transform var(--dur-micro) var(--ease-out);
+    }
+    .btn:active { transform: translateY(1px); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-primary {
+      background: var(--primary);
+      color: var(--on-primary);
+    }
+    .btn-primary:hover {
+      background: color-mix(in srgb, var(--primary) 86%, var(--on-surface));
+    }
+
+    .btn-outline {
+      background: var(--background);
+      color: var(--primary);
+      border-color: var(--primary);
+    }
+    .btn-outline:hover {
+      background: var(--surface-container-low);
+    }
+
+    .btn-soft {
+      background: var(--surface-container-low);
+      color: var(--on-surface);
+      border-color: var(--outline-variant);
+      min-height: 38px;
+      padding: var(--space-xs) var(--space-md);
+      font-size: 0.8125rem;
+    }
+    .btn-soft:hover {
+      background: var(--surface-container);
+      border-color: var(--outline);
+    }
+    .btn-soft.is-active {
+      background: var(--primary-container);
+      color: var(--on-primary-container);
+      border-color: var(--primary);
+    }
+
+    .btn-danger-armed {
+      background: color-mix(in srgb, var(--error) 12%, var(--background));
+      color: var(--error);
+      border-color: var(--error);
+    }
+
+    /* Main Asymmetric Workspace */
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(320px, 390px) minmax(0, 1fr);
+      gap: var(--space-lg);
+      align-items: start;
+    }
+
+    /* Controls Sidebar */
+    .controls-panel {
+      display: grid;
+      gap: var(--space-md);
+    }
+
+    .panel-card {
+      background: var(--background);
+      border: var(--card-border);
+      border-radius: var(--rounded-lg);
+      padding: var(--space-lg);
+      display: grid;
+      gap: var(--space-md);
+    }
+
+    .panel-title {
+      font-family: var(--font-headline);
+      font-size: var(--subhead-size);
+      font-weight: 700;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-sm);
+      color: var(--on-surface);
+    }
+
+    .section-title {
+      font-family: var(--font-headline);
+      font-size: var(--headline-size);
+      font-weight: 800;
+      margin: 0;
+      color: var(--on-surface);
+      line-height: 1.25;
+    }
+
+    .section-desc {
+      font-size: 0.875rem;
+      color: var(--on-surface-variant);
+      margin: var(--space-xs) 0 0;
+    }
+
+    /* Form Controls */
+    .field-group {
+      display: grid;
+      gap: var(--space-xs);
+    }
+
+    .field-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: var(--space-sm);
+      align-items: end;
+    }
+
+    .field-label {
+      font-family: var(--font-label);
+      font-size: var(--label-size);
+      font-weight: 600;
+      color: var(--on-surface-variant);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: var(--space-xs);
+    }
+
+    .field-control,
+    select.field-control,
+    input.field-control {
+      width: 100%;
+      min-height: 44px;
+      padding: var(--space-xs) var(--space-md);
+      background: var(--background);
+      border: 1px solid var(--outline);
+      border-radius: var(--rounded);
+      color: var(--on-surface);
+      font-size: 0.9rem;
+      transition: border-color var(--dur-micro) var(--ease-out), box-shadow var(--dur-micro) var(--ease-out);
+    }
+    select.field-control {
+      padding-right: var(--space-xl);
+    }
+    .field-control:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 20%, transparent);
+      outline: none;
+    }
+
+    /* Segmented toggle buttons */
+    .seg-group {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: var(--space-xs);
+    }
+    .seg-group-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .seg-btn {
+      min-height: 44px;
+      padding: var(--space-xs) var(--space-sm);
+      border-radius: var(--rounded);
+      border: 1px solid var(--outline-variant);
+      background: var(--surface-container-low);
+      color: var(--on-surface-variant);
+      font-family: var(--font-label);
+      font-size: 0.8125rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+      transition: background-color var(--dur-micro) var(--ease-out), border-color var(--dur-micro) var(--ease-out), color var(--dur-micro) var(--ease-out);
+    }
+    .seg-btn:hover {
+      background: var(--surface-container);
+      color: var(--on-surface);
+    }
+    .seg-btn.is-active {
+      background: var(--primary);
+      color: var(--on-primary);
+      border-color: var(--primary);
+    }
+
+    /* Sliders */
+    .slider-pair {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 64px;
+      gap: var(--space-sm);
+      align-items: center;
+    }
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--primary);
+      cursor: pointer;
+      min-height: 32px;
+    }
+    .num-mini {
+      min-height: 38px;
+      padding: var(--space-xs) var(--space-sm);
+      border: 1px solid var(--outline);
+      border-radius: var(--rounded);
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      background: var(--background);
+      width: 100%;
+    }
+
+    /* Injury Chip Grid */
+    .injury-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-xs);
+    }
+    .toggle-chip {
+      min-height: 36px;
+      padding: var(--space-xs) var(--space-sm);
+      border-radius: var(--rounded-full);
+      border: 1px solid var(--outline-variant);
+      background: var(--surface-container-low);
+      color: var(--on-surface-variant);
+      font-family: var(--font-label);
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-xs);
+      transition: background-color var(--dur-micro) var(--ease-out), border-color var(--dur-micro) var(--ease-out);
+    }
+    .toggle-chip:hover {
+      background: var(--surface-container);
+    }
+    .toggle-chip.is-injured {
+      background: color-mix(in srgb, var(--error) 12%, var(--background));
+      color: var(--error);
+      border-color: var(--error);
+    }
+
+    /* Output Area */
+    .output-area {
+      display: grid;
+      gap: var(--space-lg);
+    }
+
+    /* KPI Status Cards (Vitals treatment 1) */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+      gap: var(--space-md);
+    }
+
+    .status-card {
+      background: var(--background);
+      border: var(--card-border);
+      border-left: var(--status-bar-width) solid var(--primary);
+      border-radius: var(--rounded-lg);
+      padding: var(--space-md) var(--space-lg);
+      display: grid;
+      gap: var(--space-xs);
+    }
+    .status-card[data-status="ok"] { border-left-color: var(--tertiary); }
+    .status-card[data-status="warn"] { border-left-color: var(--warning); }
+    .status-card[data-status="alert"] { border-left-color: var(--error); }
+
+    .kpi-label {
+      font-family: var(--font-label);
+      font-size: var(--label-size);
+      font-weight: 600;
+      color: var(--on-surface-variant);
+    }
+    .kpi-value {
+      font-family: var(--font-headline);
+      font-size: 1.65rem;
+      font-weight: 800;
+      line-height: 1.15;
+      font-variant-numeric: tabular-nums;
+      color: var(--on-surface);
+    }
+    .kpi-sub {
+      font-size: 0.8125rem;
+      color: var(--on-surface-variant);
+    }
+    .kpi-sub[data-status="ok"] { color: var(--secondary); }
+    .kpi-sub[data-status="alert"] { color: var(--error); }
+
+    /* Chips (Vitals treatment 4) */
+    .chip {
+      font-family: var(--font-label);
+      font-weight: 600;
+      font-size: var(--label-size);
+      padding: var(--space-xs) var(--space-sm);
+      border-radius: var(--rounded-full);
+      background: color-mix(in srgb, var(--tertiary) 14%, var(--background));
+      color: var(--secondary);
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-xs);
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+    .chip[data-status="info"] {
+      background: var(--primary-container);
+      color: var(--on-primary-container);
+    }
+    .chip[data-status="warn"] {
+      background: color-mix(in srgb, var(--data-3) 14%, var(--background));
+      color: var(--on-surface);
+    }
+    .chip[data-status="alert"] {
+      background: color-mix(in srgb, var(--error) 10%, var(--background));
+      color: var(--error);
+    }
+    .chip[data-status="muted"] {
+      background: var(--surface-container-low);
+      color: var(--on-surface-variant);
+    }
+
+    /* Callout box */
+    .callout {
+      background: var(--primary-container);
+      color: var(--on-primary-container);
+      border-left: var(--status-bar-width) solid var(--primary);
+      border-radius: var(--rounded-lg);
+      padding: var(--space-md) var(--space-lg);
+      font-size: 0.875rem;
+      display: grid;
+      gap: var(--space-xs);
+    }
+    .callout-formula {
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      font-size: 0.9375rem;
+    }
+
+    /* Recommended Menu Grid */
+    .menu-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(290px, 100%), 1fr));
+      gap: var(--space-md);
+    }
+
+    .menu-card {
+      background: var(--background);
+      border: var(--card-border);
+      border-left: var(--status-bar-width) solid var(--tertiary);
+      border-radius: var(--rounded-lg);
+      padding: var(--space-lg);
+      display: grid;
+      gap: var(--space-md);
+      align-content: start;
+      box-shadow: var(--card-lift);
+      transition: transform var(--dur-short) var(--ease-out);
+    }
+    .menu-card:hover { transform: translateY(-2px); }
+
+    .menu-card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: var(--space-sm);
+    }
+
+    .rank-badge {
+      font-family: var(--font-label);
+      font-size: 0.75rem;
+      font-weight: 700;
+      background: var(--primary);
+      color: var(--on-primary);
+      padding: var(--space-xs) var(--space-sm);
+      border-radius: var(--rounded);
+      display: inline-block;
+      margin-bottom: var(--space-xs);
+    }
+
+    .menu-title {
+      font-family: var(--font-headline);
+      font-size: 1.08rem;
+      font-weight: 800;
+      margin: 0;
+      color: var(--on-surface);
+      line-height: 1.3;
+    }
+
+    .menu-score-box {
+      text-align: right;
+      flex-shrink: 0;
+    }
+    .menu-score-num {
+      font-family: var(--font-headline);
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: var(--primary);
+      font-variant-numeric: tabular-nums;
+      line-height: 1.1;
+    }
+    .menu-score-cap {
+      font-size: 0.7rem;
+      color: var(--on-surface-variant);
+    }
+
+    .prescription-strip {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: var(--space-sm);
+      background: var(--surface-container-low);
+      border-radius: var(--rounded);
+      padding: var(--space-sm) var(--space-md);
+      text-align: center;
+    }
+    .rx-item-label {
+      font-size: 0.7rem;
+      color: var(--on-surface-variant);
+      font-weight: 600;
+    }
+    .rx-item-val {
+      font-family: var(--font-headline);
+      font-size: 1.1rem;
+      font-weight: 800;
+      color: var(--on-surface);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .muscle-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-xs);
+      align-items: center;
+    }
+    .tag-prefix {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--on-surface-variant);
+      margin-right: var(--space-xs);
+    }
+
+    .dedup-trace {
+      font-size: 0.78rem;
+      color: var(--on-surface-variant);
+      padding-top: var(--space-sm);
+      border-top: 1px solid var(--outline-variant);
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-xs);
+    }
+
+    /* Section Panels */
+    .surface-section {
+      background: var(--background);
+      border: var(--card-border);
+      border-radius: var(--rounded-lg);
+      padding: var(--space-lg);
+      display: grid;
+      gap: var(--space-md);
+    }
+
+    .section-bar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: var(--space-md);
+      padding-bottom: var(--space-md);
+      border-bottom: 1px solid var(--outline-variant);
+    }
+
+    .filter-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-sm);
+      align-items: end;
+    }
+
+    /* Ranking Chart & Table */
+    .ranking-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(260px, 0.9fr);
+      gap: var(--space-lg);
+      align-items: start;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--outline-variant);
+      border-radius: var(--rounded);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.86rem;
+    }
+    th {
+      background: var(--surface-container-low);
+      color: var(--on-surface-variant);
+      font-family: var(--font-label);
+      font-size: var(--label-size);
+      font-weight: 700;
+      text-align: left;
+      padding: var(--space-sm) var(--space-md);
+      border-bottom: 1px solid var(--outline-variant);
+      white-space: nowrap;
+    }
+    td {
+      padding: var(--space-sm) var(--space-md);
+      border-bottom: 1px solid var(--outline-variant);
+      vertical-align: middle;
+    }
+    tr:last-child td { border-bottom: none; }
+    tbody tr {
+      cursor: pointer;
+      transition: background-color var(--dur-micro) var(--ease-out);
+    }
+    tbody tr:hover {
+      background: var(--surface-container-low);
+    }
+    tbody tr.is-selected-row {
+      background: var(--surface-container);
+    }
+    tbody tr.is-excluded-row {
+      opacity: 0.65;
+    }
+
+    .num-col {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    /* Mini Horizontal Score Bar */
+    .score-bar-track {
+      width: 100%;
+      min-width: 90px;
+      height: 10px;
+      background: var(--surface-container-low);
+      border-radius: var(--rounded-full);
+      overflow: hidden;
+      display: flex;
+    }
+    .bar-seg-primary {
+      background: var(--data-1);
+      height: 100%;
+    }
+    .bar-seg-synergist {
+      background: var(--data-2);
+      height: 100%;
+    }
+    .bar-seg-bonus {
+      background: var(--data-3);
+      height: 100%;
+    }
+
+    /* Inspector Panel */
+    .inspector-box {
+      background: var(--surface-container-low);
+      border: 1px solid var(--outline-variant);
+      border-radius: var(--rounded-lg);
+      padding: var(--space-md);
+      display: grid;
+      gap: var(--space-md);
+      min-height: 280px;
+      align-content: start;
+    }
+
+    .formula-breakdown {
+      background: var(--background);
+      border: 1px solid var(--outline-variant);
+      border-radius: var(--rounded);
+      padding: var(--space-md);
+      display: grid;
+      gap: var(--space-sm);
+    }
+    .formula-line {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.85rem;
+      padding-bottom: var(--space-xs);
+      border-bottom: 1px dashed var(--outline-variant);
+    }
+    .formula-line:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+      font-weight: 800;
+      font-size: 0.95rem;
+      color: var(--primary);
+    }
+    .formula-val {
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+    }
+
+    /* Muscle Matrix Controls */
+    .muscle-controls-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-sm);
+      align-items: end;
+      justify-content: space-between;
+    }
+    .inline-input-mini {
+      width: 58px;
+      min-height: 36px;
+      padding: 2px 6px;
+      border: 1px solid var(--outline);
+      border-radius: var(--rounded);
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      background: var(--background);
+    }
+
+    .group-batch-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(155px, 100%), 1fr));
+      gap: var(--space-sm);
+    }
+    .batch-tile {
+      background: var(--surface-container-low);
+      border: 1px solid var(--outline-variant);
+      border-radius: var(--rounded);
+      padding: var(--space-sm);
+      display: grid;
+      gap: var(--space-xs);
+    }
+    .batch-tile-head {
+      font-weight: 700;
+      font-size: 0.82rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Empty / alert banner */
+    .empty-banner {
+      background: color-mix(in srgb, var(--error) 8%, var(--background));
+      border: 1px solid var(--error);
+      border-left: var(--status-bar-width) solid var(--error);
+      border-radius: var(--rounded-lg);
+      padding: var(--space-lg);
+      color: var(--on-surface);
+      display: grid;
+      gap: var(--space-sm);
+    }
+
+    .footer-note {
+      font-size: 0.8125rem;
+      color: var(--on-surface-variant);
+      padding: var(--space-md) 0 var(--space-xl);
+      border-top: 1px solid var(--outline-variant);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: var(--space-sm);
+    }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+      .workspace { grid-template-columns: 1fr; }
+      .ranking-layout { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      .page-grid { padding: var(--space-sm); gap: var(--space-md); }
+      .app-header, .panel-card, .surface-section, .menu-card { padding: var(--space-md); }
+      .field-row { grid-template-columns: 1fr; }
+      .seg-group { grid-template-columns: 1fr; }
+      .prescription-strip { grid-template-columns: 1fr; text-align: left; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+  </style>
+</head>
+<body>
+<div class="page-shell">
+  <div class="page-grid">
+
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-top">
+        <div>
+          <div class="kicker">
+            <i data-lucide="activity" style="width:14px;height:14px;" aria-hidden="true"></i>
+            のう筋（Gym AI）パーソナライズエンジン検証ツール
+          </div>
+          <h1 class="title">M値スコアリング・メニュー自動生成シミュレーター</h1>
+          <p class="lede">
+            外部LLMを使わず端末内でミリ秒算出する確定ロジック（<code>M = B + P - R - S</code>）と「マシン-筋肉対照表（29種目×54部位）」をリアルタイムに検証します。目的・時間帯・調子・ケガ・疲労履歴の操作が即座にメニューへ反映されます。
+          </p>
+        </div>
+        <div class="header-actions">
+          <button type="button" class="btn btn-primary" onclick="advanceSessionDay(1)" title="本日の確定メニューを実施し、筋肉の疲労リセット・マシン履歴更新を行って1日進めます">
+            <i data-lucide="fast-forward" style="width:16px;height:16px;" aria-hidden="true"></i>
+            メニューを実施して翌日へ (+1日)
+          </button>
+          <button type="button" class="btn btn-outline" onclick="advanceSessionDay(3)" title="本日のメニュー実施後、中2日（+3日）経過させて超回復明けのローテーションを確認します">
+            <i data-lucide="calendar-clock" style="width:16px;height:16px;" aria-hidden="true"></i>
+            実施して+3日進める (超回復後)
+          </button>
+          <button type="button" class="btn btn-outline" onclick="exportMenuCsv()">
+            <i data-lucide="download" style="width:16px;height:16px;" aria-hidden="true"></i>
+            結果をCSV出力
+          </button>
+          <button type="button" id="btn-reset-all" class="btn btn-soft" onclick="handleResetAll(this)">
+            <i data-lucide="rotate-ccw" style="width:16px;height:16px;" aria-hidden="true"></i>
+            初期値に戻す
+          </button>
+        </div>
+      </div>
+
+      <div class="preset-bar" role="group" aria-label="シミュレーションプリセット">
+        <span class="preset-label">検証シナリオ：</span>
+        <button type="button" id="preset-standard" class="btn btn-soft is-active" onclick="applyPreset('standard')">標準ワークアウト（夕方・普通）</button>
+        <button type="button" id="preset-night" class="btn btn-soft" onclick="applyPreset('night')">就寝前・疲労気味・肩ケガ</button>
+        <button type="button" id="preset-morning" class="btn btn-soft" onclick="applyPreset('morning')">朝活ショート20分（絶好調）</button>
+        <button type="button" id="preset-firsttime" class="btn btn-soft" onclick="applyPreset('firsttime')">初回ユーザー（男性65kg・初級）</button>
+        <button type="button" id="preset-legday" class="btn btn-soft" onclick="applyPreset('legday')">上半身疲労・下半身回復完了</button>
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <div class="workspace">
+
+      <!-- Left Column: Simulation Parameters -->
+      <aside class="controls-panel" aria-label="シミュレーション条件設定">
+
+        <!-- Card 1: Core Session Settings -->
+        <section class="panel-card">
+          <h2 class="panel-title">
+            <span>1. セッション条件</span>
+            <span class="chip" data-status="info">Step 1・3・4</span>
+          </h2>
+
+          <div class="field-group">
+            <label class="field-label" for="sel-goal">
+              <span>トレーニング目的（優先度 P<sub>i</sub> 4段階テンプレ）</span>
+              <span id="custom-p-badge"></span>
+            </label>
+            <select id="sel-goal" class="field-control" onchange="updateGoal(this.value)">
+              <option value="body_make_male">ボディーメイク（男性向け）</option>
+              <option value="body_make_female">ボディーメイク（女性向け）</option>
+              <option value="health">健康維持</option>
+              <option value="diet">ダイエット</option>
+              <option value="tennis">テニス</option>
+              <option value="windsurfing">ウィンドサーフィン（techno293）</option>
+            </select>
+            <div id="custom-p-reset-wrap" style="display:none; justify-content:flex-end; margin-top:2px;">
+              <button type="button" class="btn btn-soft" style="min-height:28px; padding:2px 10px; font-size:0.75rem;" onclick="resetPriorityToTemplate()">
+                <i data-lucide="rotate-ccw" style="width:13px;height:13px;" aria-hidden="true"></i>
+                優先度 P<sub>i</sub> をテンプレ初期値に戻す
+              </button>
+            </div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label" for="sel-timeslot">実施時間帯（Step 3 乗算フィルター）</label>
+            <select id="sel-timeslot" class="field-control" onchange="updateTimeSlot(this.value)">
+              <option value="morning">朝〜午前中（おすすめ主動筋 ×1.25 / 協働筋 ×1.10）</option>
+              <option value="evening">夕方〜夜 15〜19時（中臀筋・僧帽筋 主動 ×1.08 / 協働 ×1.02）</option>
+              <option value="night">就寝前 21時以降（大筋群 主動 ×0.30 / 協働 ×0.65）</option>
+              <option value="daytime">日中・補正なし（標準 ×1.00）</option>
+            </select>
+          </div>
+
+          <div class="field-group">
+            <span class="field-label">所要時間コース（選定種目数）</span>
+            <div class="seg-group" role="group" aria-label="所要時間コース">
+              <button type="button" id="dur-2" class="seg-btn" onclick="updateDuration(2)">ショート<br>20分 (2種目)</button>
+              <button type="button" id="dur-4" class="seg-btn is-active" onclick="updateDuration(4)">スタンダード<br>45分 (4種目)</button>
+              <button type="button" id="dur-5" class="seg-btn" onclick="updateDuration(5)">フル<br>60分 (5種目)</button>
+            </div>
+          </div>
+
+          <div class="field-group">
+            <span class="field-label">直前の調子（Step 5 負荷・セット数調整）</span>
+            <div class="seg-group" role="group" aria-label="直前の調子">
+              <button type="button" id="cond-great" class="seg-btn" onclick="updateCondition('great')">絶好調<br>100% / 3set</button>
+              <button type="button" id="cond-normal" class="seg-btn is-active" onclick="updateCondition('normal')">普通<br>100% / 3set</button>
+              <button type="button" id="cond-tired" class="seg-btn" onclick="updateCondition('tired')">疲労気味<br>−5% / 2set</button>
+            </div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label" for="sel-feedback">前回フィードバック（基準重量の更新）</label>
+            <select id="sel-feedback" class="field-control" onchange="updateFeedback(this.value)">
+              <option value="just_right">ちょうど良かった（現状維持 ±0kg）</option>
+              <option value="too_easy">軽すぎた（プログレッシブ・オーバーロード +2.5kg）</option>
+              <option value="too_hard">キツすぎた（安全調整 −2.5kg）</option>
+            </select>
+          </div>
+        </section>
+
+        <!-- Card 2: First-time user & Algorithm Rules -->
+        <section class="panel-card">
+          <h2 class="panel-title">
+            <span>2. ユーザー設定・重複制御</span>
+            <span class="chip" data-status="info">Step 4・5</span>
+          </h2>
+
+          <div class="field-group">
+            <span class="field-label">ユーザー種別（初期重量の算出モード）</span>
+            <div class="seg-group seg-group-2" role="group" aria-label="ユーザー種別">
+              <button type="button" id="mode-returning" class="seg-btn is-active" onclick="updateFirstTimeMode(false)">継続ユーザー</button>
+              <button type="button" id="mode-firsttime" class="seg-btn" onclick="updateFirstTimeMode(true)">初回ユーザー</button>
+            </div>
+          </div>
+
+          <div class="field-row">
+            <div class="field-group">
+              <label class="field-label" for="sel-gender">性別（テンプレ連動・初期重量）</label>
+              <select id="sel-gender" class="field-control" onchange="updateUserProfile('gender', this.value)">
+                <option value="male">男性</option>
+                <option value="female">女性</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label class="field-label" for="sel-age">年齢層（回復・重量・回数補正）</label>
+              <select id="sel-age" class="field-control" onchange="updateUserProfile('ageGroup', this.value)">
+                <option value="under_20">10代・20代前半</option>
+                <option value="20_30">20代後半〜30代</option>
+                <option value="40s">40代</option>
+                <option value="50s">50代</option>
+                <option value="60_plus">60代以上</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="firsttime-box" style="display:none; gap: var(--space-sm);">
+            <div class="field-group">
+              <label class="field-label" for="sel-exp">経験レベル</label>
+              <select id="sel-exp" class="field-control" onchange="updateUserProfile('exp', this.value)">
+                <option value="beginner">初級</option>
+                <option value="intermediate">中級</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label class="field-label" for="slider-bw">
+                <span>体重 (kg)</span>
+                <span id="bw-readout">65 kg</span>
+              </label>
+              <div class="slider-pair">
+                <input type="range" id="slider-bw" min="40" max="120" step="1" value="65" oninput="syncBodyWeightFromSlider(this.value)">
+                <input type="number" id="input-bw" class="num-mini" min="40" max="120" step="1" value="65" oninput="syncBodyWeightFromNumber(this.value)">
+              </div>
+            </div>
+          </div>
+
+          <div class="field-row">
+            <div class="field-group">
+              <label class="field-label" for="sel-bcap">B<sub>i</sub> 上限キャップ</label>
+              <select id="sel-bcap" class="field-control" onchange="updateBCap(this.value)">
+                <option value="14">最大 14日（標準）</option>
+                <option value="21">最大 21日</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label class="field-label" for="sel-dedup">部位・カテゴリ重複制御</label>
+              <select id="sel-dedup" class="field-control" onchange="updateDedupMode(this.value)">
+                <option value="zero">主動筋0 ＋ 協働筋×0.75 ＋ 同カテゴリ×0.45</option>
+                <option value="half">主動筋×0.5 ＋ 協働筋×0.75 ＋ 同カテゴリ×0.45</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label" for="sel-volume">トレーニング強度・ボリューム補正（動的 R<sub>i</sub> 延長）</label>
+            <select id="sel-volume" class="field-control" onchange="updateVolumeMode(this.value)">
+              <option value="standard">通常強度（標準 R<sub>i</sub>）</option>
+              <option value="high_volume">高ボリューム・限界追い込み（主要補助筋 R<sub>i</sub> +1日）</option>
+            </select>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label" for="sel-focus">今日フォーカスしたい追加筋肉（主動 ×1.25 / 協働 ×1.10）</label>
+            <select id="sel-focus" class="field-control" onchange="updateFocusMuscle(this.value)">
+              <option value="">指定なし（時間帯のおすすめのみ）</option>
+            </select>
+          </div>
+        </section>
+
+        <!-- Card 3: Injury Filter -->
+        <section class="panel-card">
+          <h2 class="panel-title">
+            <span>3. ケガ部位フィルター（安全除外）</span>
+            <span class="chip" data-status="alert">×0 除外</span>
+          </h2>
+          <p class="section-desc" style="margin-top:0;">
+            ケガを選択した筋肉は M<sub>i</sub> = 0 となり、それを主動筋または協働筋に含むマシンは候補から完全除外されます。
+          </p>
+          <div class="injury-chips" id="quick-injury-chips"></div>
+          <div class="field-row">
+            <div class="field-group">
+              <label class="field-label" for="sel-injury-add">その他54部位から追加</label>
+              <select id="sel-injury-add" class="field-control">
+                <option value="">部位を選択…</option>
+              </select>
+            </div>
+            <button type="button" class="btn btn-outline" onclick="addSelectedInjury()">ケガに追加</button>
+          </div>
+          <div id="active-injuries-list" class="injury-chips"></div>
+        </section>
+
+        <!-- Card 4: Group Batch Adjuster -->
+        <section class="panel-card">
+          <h2 class="panel-title">
+            <span>4. 部位グループ別 一括調整</span>
+            <span class="chip" data-status="info">P<sub>i</sub> / B<sub>i</sub> / S<sub>i</sub></span>
+          </h2>
+          <p class="section-desc" style="margin-top:0;">
+            6大カテゴリごとに優先度（P<sub>i</sub> 4段階）・ブランク日数（B<sub>i</sub>）・刺激日数（S<sub>i</sub>）を一括変更できます。下部の表で54筋肉ごとの個別カスタムも可能です。
+          </p>
+          <div class="group-batch-grid" id="group-batch-grid"></div>
+        </section>
+
+      </aside>
+
+      <!-- Right Column: Live Outputs -->
+      <main class="output-area" aria-label="シミュレーション結果">
+
+        <!-- KPI Strip -->
+        <section class="kpi-grid" aria-label="サマリー指標">
+          <div class="status-card" data-status="ok">
+            <span class="kpi-label">確定メニュー種目数</span>
+            <span class="kpi-value" id="kpi-menu-count">4 種目</span>
+            <span class="kpi-sub" id="kpi-menu-sub" data-status="ok">スタンダード（約45分）</span>
+          </div>
+          <div class="status-card">
+            <span class="kpi-label">第1推奨種目 / 最高M値</span>
+            <span class="kpi-value" id="kpi-top-score">--</span>
+            <span class="kpi-sub" id="kpi-top-name">--</span>
+          </div>
+          <div class="status-card" data-status="ok">
+            <span class="kpi-label">稼働可能筋肉（回復完了）</span>
+            <span class="kpi-value" id="kpi-active-muscles">-- / 54</span>
+            <span class="kpi-sub" id="kpi-recovery-count">超回復ガード中: 0部位</span>
+          </div>
+          <div class="status-card" id="kpi-safety-card" data-status="warn">
+            <span class="kpi-label">安全フィルター除外マシン</span>
+            <span class="kpi-value" id="kpi-excluded-machines">0 / 29</span>
+            <span class="kpi-sub" id="kpi-safety-sub">ケガ部位なし</span>
+          </div>
+        </section>
+
+        <!-- Section 1: Today's Recommended Menu -->
+        <section class="surface-section" aria-labelledby="heading-menu">
+          <div class="section-bar">
+            <div>
+              <h2 class="section-title" id="heading-menu">本日の推奨トレーニングメニュー（Step 4・5 確定結果）</h2>
+              <p class="section-desc">
+                最高スコア種目から順に選定し、選択された主動筋・協働筋（×0.75）・同一カテゴリ（×0.45）を都度抑制して部位の偏りを防止。上部の「メニューを実施して翌日へ」ボタンで継続ローテーションを検証できます。
+              </p>
+            </div>
+            <div id="menu-condition-badge"></div>
+          </div>
+
+          <div class="callout">
+            <div class="callout-formula" id="formula-summary-line">
+              M<sub>i</sub> = B<sub>i</sub> + P<sub>i</sub> − R<sub>i</sub> − S<sub>i</sub>（B<sub>i</sub> &lt; R<sub>i</sub> またはケガ時は 0） ／ 合計M値<sub>final</sub> = (主動筋[最大70%+上位2平均30%] + 協働上位2平均×0.3 + 種目適性補正 + 未実施ローテーション加点) × 時間帯倍率 × フォーカス倍率 × カテゴリ分散 × ケガ判定
+            </div>
+            <div id="active-filter-summary"></div>
+          </div>
+
+          <div id="recommended-menu-container" class="menu-grid"></div>
+        </section>
+
+        <!-- Section 2: All 29 Machines Ranking & Breakdown -->
+        <section class="surface-section" aria-labelledby="heading-machines">
+          <div class="section-bar">
+            <div>
+              <h2 class="section-title" id="heading-machines">全29マシン 合計M値ランキング ＆ 算出内訳</h2>
+              <p class="section-desc">
+                行をクリックすると右側の詳細パネルで「主動筋スコア（最大70%+上位2平均30%）・協働筋上位2部位平均（×0.3）・未実施ローテーションボーナス・時間帯乗算補正」の計算式を確認できます。
+              </p>
+            </div>
+            <div class="filter-row">
+              <div class="field-group">
+                <label class="field-label" for="filter-machine-cat">部位カテゴリ</label>
+                <select id="filter-machine-cat" class="field-control" onchange="renderMachinesOnly()">
+                  <option value="all">すべて（29種目）</option>
+                  <option value="脚・臀部">脚・臀部（10）</option>
+                  <option value="胸">胸（5）</option>
+                  <option value="背中">背中（5）</option>
+                  <option value="肩">肩（3）</option>
+                  <option value="腕">腕（3）</option>
+                  <option value="体幹">体幹（3）</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label class="field-label" for="filter-machine-sort">並び順</label>
+                <select id="filter-machine-sort" class="field-control" onchange="renderMachinesOnly()">
+                  <option value="final_desc">合計M値（final）高い順</option>
+                  <option value="raw_desc">素点（raw）高い順</option>
+                  <option value="name_asc">マシン名順</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="ranking-layout">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>順位</th>
+                    <th>マシン名</th>
+                    <th class="num-col">主動スコア</th>
+                    <th class="num-col">協働上位2(0.3)</th>
+                    <th class="num-col">適性・未実施</th>
+                    <th class="num-col">時間帯・集中</th>
+                    <th class="num-col">合計M値</th>
+                    <th>スコア構成</th>
+                    <th>状態</th>
+                  </tr>
+                </thead>
+                <tbody id="machine-ranking-tbody"></tbody>
+              </table>
+            </div>
+
+            <div class="inspector-box" id="machine-inspector">
+              <div class="panel-title">
+                <span id="inspector-name">マシン詳細を選択</span>
+                <span class="chip" data-status="info" id="inspector-cat">--</span>
+              </div>
+              <div id="inspector-body"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Section 3: All 54 Muscles Matrix -->
+        <section class="surface-section" aria-labelledby="heading-muscles">
+          <div class="section-bar">
+            <div>
+              <h2 class="section-title" id="heading-muscles">全54筋肉 M値マトリクス ＆ 個別パラメータ編集</h2>
+              <p class="section-desc">
+                対照表の全54部位について、ブランク日数 B<sub>i</sub> と今月の刺激日数 S<sub>i</sub> を直接変更し、超回復ガード（B<sub>i</sub> &lt; R<sub>i</sub>）や M値の変化を確認できます。
+              </p>
+            </div>
+            <div class="muscle-controls-bar">
+              <div class="field-group">
+                <label class="field-label" for="filter-muscle-time">時間帯区分</label>
+                <select id="filter-muscle-time" class="field-control" onchange="renderMusclesOnly()">
+                  <option value="all">すべて（54部位）</option>
+                  <option value="night_avoid">就寝前に避けるべき（5）</option>
+                  <option value="evening_rec">夕方〜夜おすすめ（2）</option>
+                  <option value="morning_rec">朝〜午前中おすすめ（6）</option>
+                  <option value="other">その他の筋肉（41）</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label class="field-label" for="filter-muscle-group">解剖学的部位</label>
+                <select id="filter-muscle-group" class="field-control" onchange="renderMusclesOnly()">
+                  <option value="all">すべて</option>
+                  <option value="脚・臀部">脚・臀部</option>
+                  <option value="胸">胸</option>
+                  <option value="背中">背中</option>
+                  <option value="肩">肩</option>
+                  <option value="腕">腕</option>
+                  <option value="体幹">体幹</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label class="field-label" for="filter-muscle-status">ステータス</label>
+                <select id="filter-muscle-status" class="field-control" onchange="renderMusclesOnly()">
+                  <option value="all">すべて</option>
+                  <option value="active">回復完了（活性）</option>
+                  <option value="recovering">超回復ガード中（B &lt; R）</option>
+                  <option value="untargeted">対象外（鍛えない）</option>
+                  <option value="injured">ケガ除外中</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>筋肉名</th>
+                  <th>部位 / 時間帯区分</th>
+                  <th class="num-col">ブランク B<sub>i</sub> (日)</th>
+                  <th class="num-col">優先度 P<sub>i</sub></th>
+                  <th class="num-col">超回復 R<sub>i</sub></th>
+                  <th class="num-col">刺激 S<sub>i</sub> (日)</th>
+                  <th class="num-col">算出 M値</th>
+                  <th>判定ステータス</th>
+                </tr>
+              </thead>
+              <tbody id="muscle-matrix-tbody"></tbody>
+            </table>
+          </div>
+        </section>
+
+      </main>
+    </div>
+
+    <footer class="footer-note">
+      <span>参照仕様：「メニュー作成アルゴリズム案.md」（M値スコアリングモデル Step 1〜5）および「noukin_datalists - マシン-筋肉対照表」（全29マシン・54筋肉・時間帯分類）</span>
+      <span>端末内確定ロジック（外部通信なし）</span>
+    </footer>
+
+  </div>
+</div>
+
+<api-shim></api-shim>
+<script>
+// ============================================================================
+// 1. SOURCE DATA: 54 Muscles & 29 Machines (noukin_datalists - マシン-筋肉対照表)
+// ============================================================================
+const PRIORITY_TIERS = [
+  { tier: 3, label: `最優先`, shortLabel: `★★ 最優先 (18)`, pVal: 18 },
+  { tier: 2, label: `優先`, shortLabel: `★ 優先 (14)`, pVal: 14 },
+  { tier: 1, label: `普通`, shortLabel: `ー 普通 (10)`, pVal: 10 },
+  { tier: 0, label: `鍛えない`, shortLabel: `× 鍛えない (0)`, pVal: 0 }
+];
+
+const MUSCLES = [
+  // 就寝前（深夜や寝る直前）：激しい筋トレを「避けるべき」筋肉 (5)
+  { id: `m0`, name: `大腿四頭筋`, group: `脚・臀部`, timeCat: `night_avoid`, r: 3, p: { body_make_male: 18, body_make_female: 10, health: 18, diet: 18, tennis: 18, windsurfing: 18 } },
+  { id: `m1`, name: `ハムストリングス`, group: `脚・臀部`, timeCat: `night_avoid`, r: 3, p: { body_make_male: 18, body_make_female: 18, health: 18, diet: 18, tennis: 18, windsurfing: 18 } },
+  { id: `m2`, name: `大臀筋`, group: `脚・臀部`, timeCat: `night_avoid`, r: 3, p: { body_make_male: 18, body_make_female: 18, health: 18, diet: 18, tennis: 18, windsurfing: 18 } },
+  { id: `m3`, name: `大胸筋（全体・中部）`, group: `胸`, timeCat: `night_avoid`, r: 3, p: { body_make_male: 18, body_make_female: 10, health: 14, diet: 18, tennis: 14, windsurfing: 10 } },
+  { id: `m4`, name: `広背筋`, group: `背中`, timeCat: `night_avoid`, r: 3, p: { body_make_male: 18, body_make_female: 18, health: 14, diet: 18, tennis: 18, windsurfing: 18 } },
+
+  // 夕方〜夜（15時〜19時頃）：激しく鍛えるのに最もおすすめの筋肉 (2)
+  { id: `m5`, name: `中臀筋`, group: `脚・臀部`, timeCat: `evening_rec`, r: 2, p: { body_make_male: 10, body_make_female: 18, health: 14, diet: 14, tennis: 14, windsurfing: 14 } },
+  { id: `m6`, name: `僧帽筋（中部・下部）`, group: `背中`, timeCat: `evening_rec`, r: 2, p: { body_make_male: 14, body_make_female: 14, health: 14, diet: 14, tennis: 14, windsurfing: 14 } },
+
+  // 朝〜午前中：生活リズムのスイッチを入れるおすすめの筋肉 (6)
+  { id: `m7`, name: `腹直筋`, group: `体幹`, timeCat: `morning_rec`, r: 2, p: { body_make_male: 18, body_make_female: 14, health: 18, diet: 18, tennis: 18, windsurfing: 18 } },
+  { id: `m8`, name: `腹横筋`, group: `体幹`, timeCat: `morning_rec`, r: 2, p: { body_make_male: 14, body_make_female: 18, health: 18, diet: 18, tennis: 18, windsurfing: 18 } },
+  { id: `m9`, name: `脊柱起立筋群`, group: `体幹`, timeCat: `morning_rec`, r: 3, p: { body_make_male: 14, body_make_female: 18, health: 18, diet: 18, tennis: 14, windsurfing: 18 } },
+  { id: `m10`, name: `腸腰筋`, group: `体幹`, timeCat: `morning_rec`, r: 2, p: { body_make_male: 10, body_make_female: 14, health: 18, diet: 14, tennis: 14, windsurfing: 14 } },
+  { id: `m11`, name: `上腕二頭筋`, group: `腕`, timeCat: `morning_rec`, r: 2, p: { body_make_male: 14, body_make_female: 10, health: 10, diet: 10, tennis: 10, windsurfing: 18 } },
+  { id: `m12`, name: `上腕三頭筋`, group: `腕`, timeCat: `morning_rec`, r: 2, p: { body_make_male: 14, body_make_female: 14, health: 10, diet: 14, tennis: 10, windsurfing: 10 } },
+
+  // その他の筋肉 (41)
+  { id: `m13`, name: `大腿直筋`, group: `脚・臀部`, timeCat: `other`, r: 3, p: { body_make_male: 10, body_make_female: 10, health: 10, diet: 10, tennis: 10, windsurfing: 10 } },
+  { id: `m14`, name: `内転筋群`, group: `脚・臀部`, timeCat: `other`, r: 3, p: { body_make_male: 10, body_make_female: 14, health: 14, diet: 14, tennis: 14, windsurfing: 14 } },
+  { id: `m15`, name: `薄筋`, group: `脚・臀部`, timeCat: `other`, r: 2, p: { body_make_male: 0, body_make_female: 0, health: 0, diet: 0, tennis: 0, windsurfing: 0 } },
+  { id: `m16`, name: `下腿三頭筋`, group: `脚・臀部`, timeCat: `other`, r: 3, p: { body_make_male: 10, body_make_female: 10, health: 18, diet: 14, tennis: 18, windsurfing: 14 } },
+  { id: `m17`, name: `腓腹筋`, group: `脚・臀部`, timeCat: `other`, r: 3, p: { body_make_male: 10, body_make_female: 10, health: 10, diet: 10, tennis: 10, windsurfing: 14 } },
+  { id: `m18`, name: `前脛骨筋`, group: `脚・臀部`, timeCat: `other`, r: 2, p: { body_make_male: 0, body_make_female: 0, health: 14, diet: 10, tennis: 10, windsurfing: 14 } },
+  { id: `m19`, name: `足底筋`, group: `脚・臀部`, timeCat: `other`, r: 2, p: { body_make_male: 0, body_make_female: 0, health: 0, diet: 0, tennis: 0, windsurfing: 0 } },
+  { id: `m20`, name: `長母趾屈筋`, group: `脚・臀部`, timeCat: `other`, r: 2, p: { body_make_male: 0, body_make_female: 0, health: 0, diet: 0, tennis: 0, windsurfing: 0 } },
+  { id: `m21`, name: `長趾屈筋`, group: `脚・臀部`, timeCat: `other`, r: 2, p: { body_make_male: 0, body_make_female: 0, health: 0, diet: 0, tennis: 0, windsurfing: 0 } },
+  { id: `m22`, name: `後脛骨筋`, group: `脚・臀部`, timeCat: `other`, r: 2, p: { body_make_male: 0, body_make_female: 0, health: 0, diet: 0, tennis: 10, windsurfing: 10 } },
+  { id: `m23`, name: `腓骨筋（長・短腓骨筋）`, group: `脚・臀部`, timeCat: `other`, r: 2, p: { body_make_male: 0, body_make_female: 0, health: 0, diet: 0, tennis: 10, windsurfing: 10 } },
+  { id: `m24`, name: `縫工筋`, group: `脚・臀部`, timeCat: `other`, r: 2, p: { body_make_male: 0, body_make_female: 0, health: 0, diet: 0, tennis: 0, windsurfing: 0 } },
+  { id: `m25`, name: `膝窩筋`, group: `脚・臀部`, timeCat: `other`, r: 2, p: { body_make_male: 0, body_make_female: 0, health: 0, diet: 0, tennis: 0, windsurfing: 0 } },
+  { id: `m26`, name: `小臀筋`, group: `脚・臀部`, timeCat: `other`, r: 2, p: { body_make_male: 0, body_make_female: 0, health: 0, diet: 0, tennis: 0, windsurfing: 0 } },
+  { id: `m27`, name: `大腿筋膜張筋`, group: `脚・臀部`, timeCat: `other`, r: 2, p: { body_make_male: 0, body_make_female: 0, health: 0, diet: 0, tennis: 0, windsurfing: 0 } },
+  { id: `m28`, name: `梨状筋`, group: `脚・臀部`, timeCat: `other`, r: 2, p: { body_make_male: 0, body_make_female: 0, health: 0, diet: 0, tennis: 0, windsurfing: 0 } },
+  { id: `m29`, name: `大胸筋（上部・鎖骨部）`, group: `胸`, timeCat: `other`, r: 2, p: { body_make_male: 18, body_make_female: 14, health: 10, diet: 10, tennis: 10, windsurfing: 10 } },
+  { id: `m30`, name: `大胸筋（下部・腹部）`, group: `胸`, timeCat: `other`, r: 2, p: { body_make_male: 10, body_make_female: 0, health: 10, diet: 10, tennis: 10, windsurfing: 10 } },
+  { id: `m31`, name: `小胸筋`, group: `胸`, timeCat: `other`, r: 2, p: { body_make_male: 0, body_make_female: 0, health: 0, diet: 0, tennis: 0, windsurfing: 0 } },
+  { id: `m32`, name: `烏口腕筋`, group: `腕`, timeCat: `other`, r: 2, p: { body_make_male: 0, body_make_female: 0, health: 0, diet: 0, tennis: 0, windsurfing: 0 } },
+  { id: `m33`, name: `前鋸筋`, group: `胸`, timeCat: `other`, r: 2, p: { body_make_male: 10, body_make_female: 10, health: 10, diet: 10, tennis: 10, windsurfing: 10 } },
+  { id: `m34`, name: `三角筋前部`, group: `肩`, timeCat: `other`, r: 2, p: { body_make_male: 14, body_make_female: 10, health: 10, diet: 10, tennis: 10, windsurfing: 10 } },
+  { id: `m35`, name: `三角筋中部`, group: `肩`, timeCat: `other`, r: 2, p: { body_make_male: 18, body_make_female: 14, health: 10, diet: 10, tennis: 10, windsurfing: 10 } },
+  { id: `m36`, name: `三角筋後部`, group: `肩`, timeCat: `other`, r: 2, p: { body_make_male: 14, body_make_female: 14, health: 10, diet: 10, tennis: 14, windsurfing: 14 } },
+  { id: `m37`, name: `棘上筋`, group: `肩`, timeCat: `other`, r: 2, p: { body_make_male: 0, body_make_female: 0, health: 0, diet: 0, tennis: 0, windsurfing: 0 } },
+  { id: `m38`, name: `棘下筋`, group: `背中`, timeCat: `other`, r: 2, p: { body_make_male: 10, body_make_female: 10, health: 10, diet: 10, tennis: 14, windsurfing: 10 } },
+  { id: `m39`, name: `小円筋`, group: `背中`, timeCat: `other`, r: 2, p: { body_make_male: 10, body_make_female: 10, health: 10, diet: 10, tennis: 14, windsurfing: 10 } },
+  { id: `m40`, name: `大円筋`, group: `背中`, timeCat: `other`, r: 2, p: { body_make_male: 14, body_make_female: 10, health: 10, diet: 10, tennis: 10, windsurfing: 14 } },
+  { id: `m41`, name: `僧帽筋（上部）`, group: `背中`, timeCat: `other`, r: 2, p: { body_make_male: 10, body_make_female: 0, health: 10, diet: 10, tennis: 10, windsurfing: 10 } },
+  { id: `m42`, name: `菱形筋`, group: `背中`, timeCat: `other`, r: 2, p: { body_make_male: 14, body_make_female: 14, health: 14, diet: 14, tennis: 14, windsurfing: 14 } },
+  { id: `m43`, name: `上腕筋`, group: `腕`, timeCat: `other`, r: 2, p: { body_make_male: 10, body_make_female: 10, health: 10, diet: 10, tennis: 10, windsurfing: 14 } },
+  { id: `m44`, name: `腕橈骨筋`, group: `腕`, timeCat: `other`, r: 2, p: { body_make_male: 10, body_make_female: 10, health: 10, diet: 10, tennis: 14, windsurfing: 18 } },
+  { id: `m45`, name: `肘筋`, group: `腕`, timeCat: `other`, r: 2, p: { body_make_male: 0, body_make_female: 0, health: 0, diet: 0, tennis: 0, windsurfing: 0 } },
+  { id: `m46`, name: `円回内筋`, group: `腕`, timeCat: `other`, r: 2, p: { body_make_male: 0, body_make_female: 0, health: 0, diet: 0, tennis: 14, windsurfing: 10 } },
+  { id: `m47`, name: `橈側手根屈筋`, group: `腕`, timeCat: `other`, r: 2, p: { body_make_male: 0, body_make_female: 0, health: 0, diet: 0, tennis: 14, windsurfing: 10 } },
+  { id: `m48`, name: `手関節屈筋群`, group: `腕`, timeCat: `other`, r: 2, p: { body_make_male: 0, body_make_female: 0, health: 0, diet: 0, tennis: 14, windsurfing: 18 } },
+  { id: `m49`, name: `外腹斜筋`, group: `体幹`, timeCat: `other`, r: 2, p: { body_make_male: 10, body_make_female: 10, health: 10, diet: 14, tennis: 18, windsurfing: 18 } },
+  { id: `m50`, name: `内腹斜筋`, group: `体幹`, timeCat: `other`, r: 2, p: { body_make_male: 10, body_make_female: 10, health: 10, diet: 14, tennis: 18, windsurfing: 18 } },
+  { id: `m51`, name: `錐体筋`, group: `体幹`, timeCat: `other`, r: 2, p: { body_make_male: 0, body_make_female: 0, health: 0, diet: 0, tennis: 0, windsurfing: 0 } },
+  { id: `m52`, name: `腰方形筋`, group: `体幹`, timeCat: `other`, r: 2, p: { body_make_male: 10, body_make_female: 10, health: 10, diet: 10, tennis: 10, windsurfing: 14 } },
+  { id: `m53`, name: `多裂筋`, group: `体幹`, timeCat: `other`, r: 2, p: { body_make_male: 10, body_make_female: 10, health: 14, diet: 10, tennis: 10, windsurfing: 14 } }
+];
+
+const MACHINES = [
+  { id: `mac1`, name: `レッグプレス`, cat: `脚・臀部`, baseW: 85, bwFactor: 1.25, reps: 10,
+    primary: [`大腿四頭筋`, `大臀筋`, `大腿直筋`],
+    synergist: [`ハムストリングス`, `内転筋群`, `下腿三頭筋`, `腓腹筋`] },
+  { id: `mac2`, name: `ハックスクワット`, cat: `脚・臀部`, baseW: 60, bwFactor: 0.9, reps: 10,
+    primary: [`大腿四頭筋`, `大臀筋`],
+    synergist: [`ハムストリングス`, `内転筋群`, `下腿三頭筋`] },
+  { id: `mac3`, name: `ペンデュラムスクワット`, cat: `脚・臀部`, baseW: 40, bwFactor: 0.65, reps: 10,
+    primary: [`大腿四頭筋`, `大臀筋`],
+    synergist: [`ハムストリングス`, `中臀筋`, `内転筋群`, `下腿三頭筋`] },
+  { id: `mac4`, name: `ベルトスクワット`, cat: `脚・臀部`, baseW: 60, bwFactor: 0.9, reps: 10,
+    primary: [`大腿四頭筋`, `大臀筋`],
+    synergist: [`ハムストリングス`, `内転筋群`, `下腿三頭筋`] },
+  { id: `mac5`, name: `レッグエクステンション`, cat: `脚・臀部`, baseW: 45, bwFactor: 0.65, reps: 12,
+    primary: [`大腿四頭筋`, `大腿直筋`],
+    synergist: [`前脛骨筋`] },
+  { id: `mac6`, name: `レッグカール`, cat: `脚・臀部`, baseW: 40, bwFactor: 0.55, reps: 12,
+    primary: [`ハムストリングス`],
+    synergist: [`薄筋`, `腓腹筋`, `縫工筋`, `膝窩筋`] },
+  { id: `mac7`, name: `アブダクション／アダクション`, cat: `脚・臀部`, baseW: 45, bwFactor: 0.65, reps: 12,
+    primary: [`大臀筋`, `中臀筋`, `内転筋群`, `大腿筋膜張筋`],
+    synergist: [`薄筋`, `縫工筋`, `小臀筋`, `梨状筋`] },
+  { id: `mac8`, name: `グルート／ヒップスラストマシン`, cat: `脚・臀部`, baseW: 70, bwFactor: 1.0, reps: 10,
+    primary: [`大臀筋`],
+    synergist: [`大腿四頭筋`, `ハムストリングス`, `中臀筋`, `脊柱起立筋群`, `小臀筋`] },
+  { id: `mac9`, name: `マルチヒップマシン`, cat: `脚・臀部`, baseW: 35, bwFactor: 0.5, reps: 12,
+    primary: [`大臀筋`, `中臀筋`, `腸腰筋`, `内転筋群`],
+    synergist: [`ハムストリングス`, `大腿直筋`, `小臀筋`] },
+  { id: `mac10`, name: `カーフレイズ／カーフプレス`, cat: `脚・臀部`, baseW: 60, bwFactor: 0.9, reps: 15,
+    primary: [`下腿三頭筋`, `腓腹筋`],
+    synergist: [`足底筋`, `長母趾屈筋`, `長趾屈筋`, `後脛骨筋`, `腓骨筋（長・短腓骨筋）`] },
+  { id: `mac11`, name: `チェストプレス（フラット／ヴァーティカル）`, cat: `胸`, baseW: 50, bwFactor: 0.5, reps: 10,
+    primary: [`大胸筋（全体・中部）`],
+    synergist: [`上腕三頭筋`, `烏口腕筋`, `前鋸筋`, `三角筋前部`] },
+  { id: `mac12`, name: `インクラインチェストプレス`, cat: `胸`, baseW: 45, bwFactor: 0.45, reps: 10,
+    primary: [`大胸筋（上部・鎖骨部）`],
+    synergist: [`上腕三頭筋`, `前鋸筋`, `三角筋前部`] },
+  { id: `mac13`, name: `デクラインチェストプレス／ワイドチェスト`, cat: `胸`, baseW: 50, bwFactor: 0.5, reps: 10,
+    primary: [`大胸筋（下部・腹部）`],
+    synergist: [`広背筋`, `上腕三頭筋`, `三角筋前部`] },
+  { id: `mac14`, name: `ペックフライ／バタフライ（ペックデック）`, cat: `胸`, baseW: 40, bwFactor: 0.4, reps: 12,
+    primary: [`大胸筋（全体・中部）`],
+    synergist: [`小胸筋`, `烏口腕筋`, `前鋸筋`, `三角筋前部`] },
+  { id: `mac15`, name: `シーテッドディップ`, cat: `胸`, baseW: 55, bwFactor: 0.65, reps: 10,
+    primary: [`上腕三頭筋`, `大胸筋（下部・腹部）`],
+    synergist: [`広背筋`, `小胸筋`, `三角筋前部`, `菱形筋`] },
+  { id: `mac16`, name: `ラットプルダウン`, cat: `背中`, baseW: 45, bwFactor: 0.6, reps: 10,
+    primary: [`広背筋`, `大円筋`],
+    synergist: [`僧帽筋（中部・下部）`, `上腕二頭筋`, `前鋸筋`, `三角筋後部`, `棘下筋`, `小円筋`, `菱形筋`, `上腕筋`, `腕橈骨筋`] },
+  { id: `mac17`, name: `シーテッドロー／ミッドロウ`, cat: `背中`, baseW: 45, bwFactor: 0.6, reps: 10,
+    primary: [`広背筋`, `僧帽筋（中部・下部）`, `菱形筋`],
+    synergist: [`脊柱起立筋群`, `上腕二頭筋`, `三角筋後部`, `大円筋`, `上腕筋`, `腕橈骨筋`] },
+  { id: `mac18`, name: `アイソラテラル・ロー／ローロー／ハイロー`, cat: `背中`, baseW: 45, bwFactor: 0.6, reps: 10,
+    primary: [`広背筋`, `僧帽筋（中部・下部）`, `菱形筋`],
+    synergist: [`上腕二頭筋`, `三角筋後部`, `棘下筋`, `小円筋`, `大円筋`, `僧帽筋（上部）`, `腕橈骨筋`] },
+  { id: `mac19`, name: `プルオーバーマシン`, cat: `背中`, baseW: 40, bwFactor: 0.5, reps: 12,
+    primary: [`広背筋`, `大胸筋（下部・腹部）`],
+    synergist: [`上腕三頭筋`, `小胸筋`, `前鋸筋`, `大円筋`, `菱形筋`] },
+  { id: `mac20`, name: `チェストサポート式Tバーロウ`, cat: `背中`, baseW: 40, bwFactor: 0.55, reps: 10,
+    primary: [`広背筋`, `僧帽筋（中部・下部）`, `菱形筋`],
+    synergist: [`上腕二頭筋`, `三角筋後部`, `棘下筋`, `小円筋`, `大円筋`, `僧帽筋（上部）`, `腕橈骨筋`] },
+  { id: `mac21`, name: `ショルダープレス／オーバーヘッドプレス`, cat: `肩`, baseW: 30, bwFactor: 0.35, reps: 10,
+    primary: [`三角筋前部`, `三角筋中部`],
+    synergist: [`僧帽筋（中部・下部）`, `上腕三頭筋`, `大胸筋（上部・鎖骨部）`, `前鋸筋`, `棘上筋`, `僧帽筋（上部）`] },
+  { id: `mac22`, name: `リアデルト（ペックフライ・リアデルト兼用機）`, cat: `肩`, baseW: 30, bwFactor: 0.35, reps: 12,
+    primary: [`三角筋後部`],
+    synergist: [`僧帽筋（中部・下部）`, `棘下筋`, `小円筋`, `大円筋`, `菱形筋`] },
+  { id: `mac23`, name: `サイドレイズマシン（ラテラルレイズマシン）`, cat: `肩`, baseW: 20, bwFactor: 0.25, reps: 12,
+    primary: [`三角筋中部`],
+    synergist: [`前鋸筋`, `棘上筋`, `僧帽筋（上部）`] },
+  { id: `mac24`, name: `バイセップスカールマシン（アームカールマシン）`, cat: `腕`, baseW: 25, bwFactor: 0.3, reps: 12,
+    primary: [`上腕二頭筋`, `上腕筋`],
+    synergist: [`腕橈骨筋`, `円回内筋`, `橈側手根屈筋`] },
+  { id: `mac25`, name: `プリーチャーカールマシン`, cat: `腕`, baseW: 25, bwFactor: 0.3, reps: 12,
+    primary: [`上腕二頭筋`, `上腕筋`],
+    synergist: [`腕橈骨筋`, `円回内筋`] },
+  { id: `mac26`, name: `トライセプスプレスマシン／エクステンションマシン`, cat: `腕`, baseW: 30, bwFactor: 0.35, reps: 12,
+    primary: [`上腕三頭筋`],
+    synergist: [`肘筋`, `手関節屈筋群`] },
+  { id: `mac27`, name: `アブドミナルクランチマシン`, cat: `体幹`, baseW: 35, bwFactor: 0.45, reps: 15,
+    primary: [`腹直筋`],
+    synergist: [`外腹斜筋`, `内腹斜筋`, `錐体筋`] },
+  { id: `mac28`, name: `ロータリートルソー`, cat: `体幹`, baseW: 30, bwFactor: 0.4, reps: 15,
+    primary: [`外腹斜筋`, `内腹斜筋`],
+    synergist: [`腹直筋`, `腹横筋`, `脊柱起立筋群`, `腸腰筋`, `腰方形筋`] },
+  { id: `mac29`, name: `バックエクステンションマシン／ロウバックマシン`, cat: `体幹`, baseW: 40, bwFactor: 0.55, reps: 12,
+    primary: [`脊柱起立筋群`],
+    synergist: [`ハムストリングス`, `大臀筋`, `腰方形筋`, `多裂筋`] }
+];
+
+const QUICK_INJURY_MUSCLES = [
+  `三角筋前部`, `三角筋中部`, `大胸筋（全体・中部）`, `広背筋`,
+  `脊柱起立筋群`, `大腿四頭筋`, `ハムストリングス`, `大臀筋`,
+  `上腕二頭筋`, `上腕三頭筋`
+];
+
+const GROUP_ORDER = [`脚・臀部`, `胸`, `背中`, `肩`, `腕`, `体幹`];
+
+const TIME_CAT_LABELS = {
+  night_avoid: `就寝前NG（交感神経刺激）`,
+  evening_rec: `夕方〜夜おすすめ（15–19時）`,
+  morning_rec: `朝〜午前おすすめ`,
+  other: `その他`
+};
+
+const GOAL_LABELS = {
+  body_make_male: `ボディーメイク（男性向け）`,
+  body_make_female: `ボディーメイク（女性向け）`,
+  health: `健康維持`,
+  diet: `ダイエット`,
+  tennis: `テニス`,
+  windsurfing: `ウィンドサーフィン（techno293）`
+};
+
+const AGE_COEFFICIENTS = {
+  under_20: 0.95,
+  '20_30': 1.00,
+  '40s': 0.90,
+  '50s': 0.80,
+  '60_plus': 0.65
+};
+
+const AGE_LABELS = {
+  under_20: `10代・20代前半`,
+  '20_30': `20代後半〜30代`,
+  '40s': `40代`,
+  '50s': `50代`,
+  '60_plus': `60代以上`
+};
+
+// ============================================================================
+// 2. APPLICATION STATE
+// ============================================================================
+function normalizePriorityTierVal(val, fallback = 10) {
+  const num = Number(val);
+  if (Number.isNaN(num)) return fallback;
+  if (num === 0) return 0;
+  if (num >= 16) return 18;
+  if (num >= 12) return 14;
+  return 10;
+}
+
+function createDefaultMuscleInputs(goalKey = `body_make_male`) {
+  const map = {};
+  MUSCLES.forEach((m) => {
+    const defaultP = m.p[goalKey] !== undefined ? m.p[goalKey] : 10;
+    map[m.id] = { b: 4, s: 2, p: defaultP };
+  });
+  return map;
+}
+
+function applyGoalTemplateToInputs(goalKey) {
+  if (!appState.muscleInputs) appState.muscleInputs = {};
+  MUSCLES.forEach((m) => {
+    const defaultP = m.p[goalKey] !== undefined ? m.p[goalKey] : 10;
+    if (!appState.muscleInputs[m.id]) {
+      appState.muscleInputs[m.id] = { b: 4, s: 2, p: defaultP };
+    } else {
+      appState.muscleInputs[m.id].p = defaultP;
+    }
+  });
+}
+
+function isPriorityCustomized() {
+  const goalKey = appState.goal || `body_make_male`;
+  return MUSCLES.some((m) => {
+    const tmplP = m.p[goalKey] !== undefined ? m.p[goalKey] : 10;
+    const curP = appState.muscleInputs && appState.muscleInputs[m.id] && appState.muscleInputs[m.id].p !== undefined
+      ? Number(appState.muscleInputs[m.id].p)
+      : tmplP;
+    return curP !== tmplP;
+  });
+}
+
+function isIsolationOrCoreMachine(mac) {
+  const totalInvolved = mac.primary.length + mac.synergist.length;
+  if (totalInvolved <= 4) return true;
+  if (mac.cat === `腕` || mac.cat === `体幹`) return true;
+  const isoIds = new Set([`mac5`, `mac6`, `mac10`, `mac14`, `mac22`, `mac23`]);
+  return isoIds.has(mac.id);
+}
+
+function createDefaultMachineHistory() {
+  const map = {};
+  // 同カテゴリ内で順番待ちによる埋没を防ぐため、初期未実施セッション数を階段状（2〜9）に配置
+  const customOffsets = {
+    mac1: 4, mac2: 6, mac3: 2, mac4: 6, mac5: 9, mac6: 6, mac7: 2, mac8: 3, mac9: 2, mac10: 7,
+    mac11: 4, mac12: 3, mac13: 5, mac14: 6, mac15: 2,
+    mac16: 4, mac17: 3, mac18: 2, mac19: 6, mac20: 7,
+    mac21: 3, mac22: 5, mac23: 6,
+    mac24: 4, mac25: 6, mac26: 5,
+    mac27: 3, mac28: 5, mac29: 4
+  };
+  MACHINES.forEach((mac) => {
+    map[mac.id] = customOffsets[mac.id] !== undefined ? customOffsets[mac.id] : 4;
+  });
+  return map;
+}
+
+const HIGH_VOLUME_EXTEND_MUSCLES = new Set([
+  `大胸筋（上部・鎖骨部）`,
+  `大胸筋（下部・腹部）`,
+  `三角筋前部`,
+  `三角筋中部`,
+  `三角筋後部`,
+  `大円筋`,
+  `僧帽筋（上部）`,
+  `僧帽筋（中部・下部）`,
+  `菱形筋`
+]);
+
+function createInitialState() {
+  return {
+    goal: `body_make_male`,
+    timeSlot: `evening`,
+    durationCount: 4,
+    condition: `normal`,
+    feedback: `just_right`,
+    volumeMode: `standard`,
+    highVolumeLoad: false,
+    isFirstTime: false,
+    gender: `male`,
+    ageGroup: `20_30`,
+    bodyWeight: 65,
+    exp: `beginner`,
+    bCap: 14,
+    dedupMode: `zero`,
+    focusMuscle: ``,
+    injured: [],
+    muscleInputs: createDefaultMuscleInputs(`body_make_male`),
+    machineHistory: createDefaultMachineHistory(),
+    sessionCount: 1,
+    selectedMachineId: `mac1`,
+    activePreset: `standard`
+  };
+}
+
+let appState = createInitialState();
+let lastComputed = null;
+let saveTimer = null;
+
+// ============================================================================
+// 3. ALGORITHM ENGINE (M-Score Scoring Model Steps 1 to 5)
+// ============================================================================
+function roundTo25(val) {
+  return Math.max(2.5, Math.round(val / 2.5) * 2.5);
+}
+
+function computeMuscleScores() {
+  const bCap = Number(appState.bCap) || 14;
+  const injuredSet = new Set(appState.injured);
+  const isHighVolExtend = Boolean(appState.highVolumeLoad) || appState.volumeMode === `high_volume` || appState.feedback === `too_hard`;
+  const ageGroup = AGE_COEFFICIENTS[appState.ageGroup] ? appState.ageGroup : `20_30`;
+  const isAgeExtendR = ageGroup === `50s` || ageGroup === `60_plus`;
+  const scoresByName = {};
+  const list = [];
+
+  MUSCLES.forEach((m) => {
+    const defaultP = m.p[appState.goal] !== undefined ? m.p[appState.goal] : 10;
+    const inp = appState.muscleInputs[m.id] || { b: 4, s: 2, p: defaultP };
+    const bRaw = Math.max(0, Number(inp.b) || 0);
+    const bCapped = Math.min(bRaw, bCap);
+    const pVal = inp.p !== undefined ? normalizePriorityTierVal(inp.p, defaultP) : defaultP;
+    const isExtendedR = isHighVolExtend && HIGH_VOLUME_EXTEND_MUSCLES.has(m.name);
+    const rVal = m.r + (isExtendedR ? 1 : 0) + (isAgeExtendR ? 1 : 0);
+    const sVal = Math.max(0, Number(Number(inp.s || 0).toFixed(1)));
+    const isInjured = injuredSet.has(m.name);
+    const isUntargeted = !isInjured && pVal === 0;
+    const isRecovering = !isInjured && !isUntargeted && bCapped < rVal;
+
+    let mVal = 0;
+    let status = `active`;
+    if (isInjured) {
+      mVal = 0;
+      status = `injured`;
+    } else if (isUntargeted) {
+      mVal = 0;
+      status = `untargeted`;
+    } else if (isRecovering) {
+      mVal = 0;
+      status = `recovering`;
+    } else {
+      mVal = Math.max(0, Number((bCapped + pVal - rVal - sVal).toFixed(1)));
+      status = `active`;
+    }
+
+    // 協働筋用基礎スコア: 鍛えない(p===0)部位でも回復完了時は内部優先度 P_syn = 6 で算出
+    let synMVal = 0;
+    if (isInjured || bCapped < rVal) {
+      synMVal = 0;
+    } else if (pVal === 0) {
+      synMVal = Math.max(0, Number((bCapped + 6 - rVal - sVal).toFixed(1)));
+    } else {
+      synMVal = mVal;
+    }
+
+    const row = {
+      id: m.id,
+      name: m.name,
+      group: m.group,
+      timeCat: m.timeCat,
+      bRaw: bRaw,
+      bCapped: bCapped,
+      p: pVal,
+      pTemplate: defaultP,
+      rBase: m.r,
+      r: rVal,
+      isExtendedR: isExtendedR,
+      isAgeExtendedR: isAgeExtendR,
+      s: sVal,
+      mVal: mVal,
+      synMVal: synMVal,
+      status: status
+    };
+    scoresByName[m.name] = row;
+    list.push(row);
+  });
+
+  return { scoresByName: scoresByName, list: list };
+}
+
+function isNightAvoidMuscle(name) {
+  if (name === `脊柱起立筋群` || name === `大胸筋（上部・鎖骨部）` || name === `大胸筋（下部・腹部）`) return true;
+  const mObj = MUSCLES.find((x) => x.name === name);
+  return Boolean(mObj && mObj.timeCat === `night_avoid`);
+}
+
+function evaluateMachine(machine, mMap, synMMap = mMap, pickedCatCounts = {}, stepIndex = 0, scoresByName = {}) {
+  const injuredSet = new Set(appState.injured);
+  const allInvolved = machine.primary.concat(machine.synergist);
+  const hitInjuries = allInvolved.filter((name) => injuredSet.has(name));
+  const injuryMultiplier = hitInjuries.length > 0 ? 0 : 1;
+
+  const getP = (name) => {
+    if (scoresByName && scoresByName[name]) return scoresByName[name].p;
+    const mObj = MUSCLES.find((x) => x.name === name);
+    if (!mObj) return 10;
+    const defP = mObj.p[appState.goal] !== undefined ? mObj.p[appState.goal] : 10;
+    const inp = appState.muscleInputs && appState.muscleInputs[mObj.id];
+    return inp && inp.p !== undefined ? normalizePriorityTierVal(inp.p, defP) : defP;
+  };
+
+  // 1. 主動筋スコア: 鍛えない(p===0)部位の除外判定（mac7の大腿筋膜張筋のみp===0時は分母除外）
+  const isMac7 = machine.id === `mac7`;
+  const excludedByTfl = isMac7 && getP(`大腿筋膜張筋`) === 0;
+  const activePrimary = excludedByTfl
+    ? machine.primary.filter((name) => name !== `大腿筋膜張筋`)
+    : machine.primary.slice();
+  const hasUntargetedPrimary = activePrimary.length === 0 || activePrimary.some((name) => getP(name) === 0);
+  const untargetedMultiplier = hasUntargetedPrimary ? 0 : 1;
+
+  let primaryMax = 0;
+  let primaryTop2Avg = 0;
+  let primaryScore = 0;
+  let primaryDetails = [];
+
+  if (hasUntargetedPrimary) {
+    primaryDetails = machine.primary.map((name) => {
+      const val = mMap[name] !== undefined ? mMap[name] : 0;
+      const pVal = getP(name);
+      return {
+        name: name,
+        m: val,
+        pVal: pVal,
+        isExcludedTfl: isMac7 && name === `大腿筋膜張筋` && pVal === 0,
+        isMax: false,
+        isTop2: false,
+        weighted: 0
+      };
+    });
+  } else {
+    const primarySorted = activePrimary
+      .map((name) => {
+        const val = mMap[name] !== undefined ? mMap[name] : 0;
+        return { name: name, m: val };
+      })
+      .sort((a, b) => b.m - a.m);
+
+    primaryMax = primarySorted.length > 0 ? primarySorted[0].m : 0;
+    const topPrimaryCount = Math.min(2, primarySorted.length);
+    const topPrimaryNames = new Set(primarySorted.slice(0, topPrimaryCount).map((x) => x.name));
+    let primaryTopRawSum = 0;
+    primarySorted.slice(0, topPrimaryCount).forEach((x) => { primaryTopRawSum += x.m; });
+    primaryTop2Avg = topPrimaryCount > 0 ? primaryTopRawSum / topPrimaryCount : 0;
+    primaryScore = primaryMax > 0 ? (primaryMax * 0.7) + (primaryTop2Avg * 0.3) : 0;
+
+    const maxCount = Math.max(1, activePrimary.filter((name) => (mMap[name] !== undefined ? mMap[name] : 0) === primaryMax).length);
+    primaryDetails = machine.primary.map((name) => {
+      const val = mMap[name] !== undefined ? mMap[name] : 0;
+      const pVal = getP(name);
+      if (excludedByTfl && name === `大腿筋膜張筋`) {
+        return {
+          name: name,
+          m: val,
+          pVal: pVal,
+          isExcludedTfl: true,
+          isMax: false,
+          isTop2: false,
+          weighted: 0
+        };
+      }
+      const isMax = primaryMax > 0 && val === primaryMax;
+      const isTop2 = primaryMax > 0 && topPrimaryNames.has(name);
+      const wVal = primaryMax > 0
+        ? (isMax ? (val * 0.7 / maxCount) : 0) + (isTop2 && topPrimaryCount > 0 ? (val * 0.3 / topPrimaryCount) : 0)
+        : 0;
+      return {
+        name: name,
+        m: val,
+        pVal: pVal,
+        isExcludedTfl: false,
+        isMax: isMax,
+        isTop2: isTop2,
+        weighted: wVal
+      };
+    });
+  }
+  const primaryAvg = primaryTop2Avg;
+
+  // 2. 協働筋のうちM値(synMMap)上位2部位の平均 × 0.3
+  const synSource = synMMap || mMap;
+  const synSorted = machine.synergist
+    .map((name) => {
+      const val = synSource[name] !== undefined ? synSource[name] : 0;
+      return { name: name, m: val };
+    })
+    .sort((a, b) => b.m - a.m);
+
+  const topSynCount = Math.min(2, synSorted.length);
+  const topSynNames = new Set(synSorted.slice(0, topSynCount).map((x) => x.name));
+  let synTopRawSum = 0;
+  synSorted.slice(0, topSynCount).forEach((x) => { synTopRawSum += x.m; });
+  const synergistTopAvg = topSynCount > 0 ? synTopRawSum / topSynCount : 0;
+  const synergistScore = synergistTopAvg * 0.3;
+
+  const synergistDetails = machine.synergist.map((name) => {
+    const val = synSource[name] !== undefined ? synSource[name] : 0;
+    const isTop2 = topSynNames.has(name);
+    return {
+      name: name,
+      m: val,
+      pVal: getP(name),
+      isTop2: isTop2,
+      weighted: isTop2 && topSynCount > 0 ? (val / topSynCount) * 0.3 : 0
+    };
+  });
+
+  // 3. マシン別未実施セッション数ボーナス（3段階スケーリング：5回まで×0.7、6〜10回×1.5、11回以降×2.5、上限なし）
+  const sessionsSinceUsed = appState.machineHistory && appState.machineHistory[machine.id] !== undefined
+    ? Number(appState.machineHistory[machine.id])
+    : 4;
+  let baseRot = 0;
+  if (sessionsSinceUsed <= 5) {
+    baseRot = sessionsSinceUsed * 0.7;
+  } else if (sessionsSinceUsed <= 10) {
+    baseRot = (5 * 0.7) + ((sessionsSinceUsed - 5) * 1.5);
+  } else {
+    baseRot = (5 * 0.7) + (5 * 1.5) + ((sessionsSinceUsed - 10) * 2.5);
+  }
+  const rotationBonus = primaryScore > 0
+    ? Number(baseRot.toFixed(1))
+    : 0;
+
+  // 4. 種目タイプ別の基礎適性補正（前半コンパウンド優先・長期未実施は序盤も解放・後半は単関節/未選出カテゴリ促進）
+  const isIsoOrCore = isIsolationOrCoreMachine(machine);
+  const isCompound5Plus = allInvolved.length >= 5 && !isIsoOrCore;
+  const targetCount = Number(appState.durationCount) || 4;
+  const catPickedCount = pickedCatCounts[machine.cat] || 0;
+  let structureBonus = 0;
+  const bonusReasons = [];
+  const penaltyReasons = [];
+
+  if (hasUntargetedPrimary) {
+    penaltyReasons.push(`鍛えない主動筋あり（選出対象外）`);
+  }
+
+  if (primaryScore > 0) {
+    if (stepIndex >= 2 || appState.condition === `tired` || appState.timeSlot === `night`) {
+      if (isIsoOrCore) {
+        structureBonus = 3.5;
+        if (targetCount >= 4 && stepIndex === targetCount - 1 && catPickedCount === 0) {
+          structureBonus += 3.0;
+          bonusReasons.push(`終盤フィニッシャー未選出カテゴリ適性 (+6.5)`);
+        } else {
+          bonusReasons.push(`後半・疲労/就寝前アイソレーション適性 (+3.5)`);
+        }
+      }
+    } else if (stepIndex <= 1) {
+      if (isCompound5Plus) {
+        structureBonus = 2.5;
+        bonusReasons.push(`序盤コンパウンド適性 (+2.5)`);
+      } else if (isIsoOrCore && sessionsSinceUsed >= 8) {
+        structureBonus = 3.0;
+        bonusReasons.push(`長期未実施種目ピックアップ適性 (+3.0)`);
+      }
+    }
+
+    if (sessionsSinceUsed >= 10 && structureBonus < 4.0) {
+      structureBonus = Math.max(structureBonus, 4.0);
+      bonusReasons.push(`長期未実施ローテーション優先 (+4.0)`);
+    }
+  }
+
+  const rawScore = primaryScore + synergistScore + structureBonus + rotationBonus;
+
+  // Step 3: 時間帯・フォーカスの乗算（割合）補正
+  let timeMultiplier = 1.0;
+  let focusMultiplier = 1.0;
+
+  if (appState.timeSlot === `morning`) {
+    const pHits = machine.primary.filter((name) => {
+      const mObj = MUSCLES.find((x) => x.name === name);
+      return mObj && mObj.timeCat === `morning_rec`;
+    });
+    const sHits = machine.synergist.filter((name) => {
+      const mObj = MUSCLES.find((x) => x.name === name);
+      return mObj && mObj.timeCat === `morning_rec`;
+    });
+    if (pHits.length > 0) {
+      timeMultiplier = 1.25;
+      bonusReasons.push(`朝活おすすめ主動筋 (×1.25)`);
+    } else if (sHits.length > 0) {
+      timeMultiplier = 1.10;
+      bonusReasons.push(`朝活おすすめ協働筋 (×1.10)`);
+    }
+  } else if (appState.timeSlot === `evening`) {
+    const pHits = machine.primary.filter((name) => {
+      const mObj = MUSCLES.find((x) => x.name === name);
+      return mObj && mObj.timeCat === `evening_rec`;
+    });
+    const sHits = machine.synergist.filter((name) => {
+      const mObj = MUSCLES.find((x) => x.name === name);
+      return mObj && mObj.timeCat === `evening_rec`;
+    });
+    if (pHits.length > 0) {
+      timeMultiplier = 1.08;
+      bonusReasons.push(`夕方おすすめ主動筋 (×1.08)`);
+    } else if (sHits.length > 0) {
+      timeMultiplier = 1.02;
+      bonusReasons.push(`夕方おすすめ協働筋 (×1.02)`);
+    }
+  } else if (appState.timeSlot === `night`) {
+    const pNightHits = machine.primary.filter(isNightAvoidMuscle);
+    const sNightHits = machine.synergist.filter(isNightAvoidMuscle);
+    if (pNightHits.length > 0) {
+      timeMultiplier = 0.30;
+      penaltyReasons.push(`就寝前大筋群（主動）抑制 (×0.30)`);
+    } else if (sNightHits.length > 0) {
+      timeMultiplier = 0.65;
+      penaltyReasons.push(`就寝前大筋群（協働）配慮 (×0.65)`);
+    }
+  }
+
+  if (appState.focusMuscle) {
+    if (machine.primary.includes(appState.focusMuscle)) {
+      focusMultiplier = 1.25;
+      bonusReasons.push(`フォーカス主動筋「${appState.focusMuscle}」(×1.25)`);
+    } else if (machine.synergist.includes(appState.focusMuscle)) {
+      focusMultiplier = 1.10;
+      bonusReasons.push(`フォーカス協働筋「${appState.focusMuscle}」(×1.10)`);
+    }
+  }
+
+  // Step 4 カテゴリ分散補正（同カテゴリ重複には一律 ×0.45 を適用）
+  const catBaseFactor = 0.45;
+  const catMultiplier = catPickedCount > 0 ? Math.pow(catBaseFactor, catPickedCount) : 1.0;
+  if (catPickedCount > 0) {
+    penaltyReasons.push(`同カテゴリ重複抑制「${machine.cat}」(×${catMultiplier.toFixed(2)})`);
+  }
+
+  const combinedMultiplier = timeMultiplier * focusMultiplier * catMultiplier;
+  const adjusted = Math.max(0, rawScore * combinedMultiplier);
+  const finalScore = adjusted * injuryMultiplier * untargetedMultiplier;
+
+  return {
+    machine: machine,
+    primaryDetails: primaryDetails,
+    synergistDetails: synergistDetails,
+    primaryMax: primaryMax,
+    primaryAvg: primaryAvg,
+    synergistTopAvg: synergistTopAvg,
+    primarySum: primaryScore,
+    synergistSum: synergistScore,
+    structureBonus: structureBonus,
+    sessionsSinceUsed: sessionsSinceUsed,
+    rotationBonus: rotationBonus,
+    rawScore: rawScore,
+    timeMultiplier: timeMultiplier,
+    focusMultiplier: focusMultiplier,
+    catMultiplier: catMultiplier,
+    combinedMultiplier: combinedMultiplier,
+    bonusReasons: bonusReasons,
+    penaltyReasons: penaltyReasons,
+    hitInjuries: hitInjuries,
+    injuryMultiplier: injuryMultiplier,
+    hasUntargetedPrimary: hasUntargetedPrimary,
+    untargetedMultiplier: untargetedMultiplier,
+    finalScore: finalScore
+  };
+}
+
+function computePrescription(machine) {
+  let baseW = machine.baseW;
+  const reasons = [];
+  const ageGroup = AGE_COEFFICIENTS[appState.ageGroup] ? appState.ageGroup : `20_30`;
+  const ageMul = AGE_COEFFICIENTS[ageGroup];
+  const ageLabel = AGE_LABELS[ageGroup];
+
+  if (appState.isFirstTime) {
+    const genderMul = appState.gender === `female` ? 0.65 : 1.0;
+    const expMul = appState.exp === `intermediate` ? 1.25 : 1.0;
+    baseW = roundTo25(appState.bodyWeight * machine.bwFactor * genderMul * expMul * ageMul);
+    reasons.push(`初回推定 (${appState.bodyWeight}kg × ${appState.gender === `female` ? `女性` : `男性`}・${appState.exp === `intermediate` ? `中級` : `初級`}・${ageLabel} ×${ageMul.toFixed(2)})`);
+  } else {
+    if (appState.feedback === `too_easy`) {
+      baseW += 2.5;
+      reasons.push(`前回軽すぎ +2.5kg`);
+    } else if (appState.feedback === `too_hard`) {
+      baseW = Math.max(2.5, baseW - 2.5);
+      reasons.push(`前回キツすぎ −2.5kg`);
+    } else {
+      reasons.push(`前回ちょうど維持`);
+    }
+
+    if (ageGroup === `60_plus`) {
+      baseW = roundTo25(baseW * 0.90);
+      reasons.push(`60代以上関節保護: 基準重量×0.90`);
+    }
+  }
+
+  let finalW = baseW;
+  let sets = 3;
+  if (appState.condition === `tired`) {
+    finalW = roundTo25(baseW * 0.95);
+    sets = 2;
+    reasons.push(`疲労気味: 重量−5% ＆ 2セット短縮`);
+  } else if (appState.condition === `great`) {
+    reasons.push(`絶好調: 通常負荷 3セット`);
+  } else {
+    reasons.push(`体調普通: 通常負荷 3セット`);
+  }
+
+  let targetReps = machine.reps;
+  if (ageGroup === `50s` && machine.reps === 10) {
+    targetReps = 12;
+    reasons.push(`50代関節保護: 10回→12回シフト`);
+  } else if (ageGroup === `60_plus`) {
+    if (machine.reps === 10) {
+      targetReps = 12;
+      reasons.push(`60代以上関節保護: 10回→12回シフト`);
+    } else if (machine.reps === 12) {
+      targetReps = 15;
+      reasons.push(`60代以上関節保護: 12回→15回シフト`);
+    }
+  }
+
+  return {
+    weight: finalW,
+    reps: targetReps,
+    sets: sets,
+    reasons: reasons
+  };
+}
+
+function getTieBreakOrder(machineId) {
+  const idx = MACHINES.findIndex((m) => m.id === machineId);
+  const sCount = Number(appState.sessionCount) || 1;
+  return (idx + sCount * 7) % 29;
+}
+
+function runSimulation() {
+  const { scoresByName, list: muscleList } = computeMuscleScores();
+
+  // Base M-score maps for Step 2 & 3 ranking (primary mVal & synergist synMVal)
+  const baseMMap = {};
+  const baseSynMMap = {};
+  muscleList.forEach((m) => {
+    baseMMap[m.name] = m.mVal;
+    baseSynMMap[m.name] = m.synMVal;
+  });
+
+  const initialEvaluations = MACHINES.map((mac) => evaluateMachine(mac, baseMMap, baseSynMMap, {}, 0, scoresByName));
+
+  // Step 4: Iterative Menu Selection with Deduplication & Category Control
+  const workingMMap = Object.assign({}, baseMMap);
+  const workingSynMMap = Object.assign({}, baseSynMMap);
+  const selectedIds = new Set();
+  const pickedCatCounts = {};
+  const menu = [];
+  const targetCount = Number(appState.durationCount) || 4;
+
+  for (let step = 0; step < targetCount; step++) {
+    const candidates = MACHINES
+      .filter((mac) => !selectedIds.has(mac.id))
+      .map((mac) => evaluateMachine(mac, workingMMap, workingSynMMap, pickedCatCounts, step, scoresByName))
+      .filter((ev) => ev.finalScore > 0);
+
+    if (candidates.length === 0) break;
+
+    candidates.sort((a, b) =>
+      b.finalScore - a.finalScore ||
+      b.rawScore - a.rawScore ||
+      getTieBreakOrder(b.machine.id) - getTieBreakOrder(a.machine.id)
+    );
+    const winner = candidates[0];
+    selectedIds.add(winner.machine.id);
+
+    // 同一カテゴリのカウントを加算（次種目以降の同カテゴリに ×0.45 を適用）
+    pickedCatCounts[winner.machine.cat] = (pickedCatCounts[winner.machine.cat] || 0) + 1;
+    const catFactorUsed = 0.45;
+
+    const suppressedNames = [];
+    // 主動筋の減衰（0 または ×0.5）および p > 0 筋の協働マップ同期
+    winner.machine.primary.forEach((pName) => {
+      const before = workingMMap[pName] || 0;
+      if (before > 0) {
+        if (appState.dedupMode === `half`) {
+          workingMMap[pName] = Number((before * 0.5).toFixed(1));
+          suppressedNames.push(`主:${pName} (${before}→${workingMMap[pName]})`);
+        } else {
+          workingMMap[pName] = 0;
+          suppressedNames.push(`主:${pName} (${before}→0)`);
+        }
+      }
+      if (scoresByName[pName] && scoresByName[pName].p > 0) {
+        workingSynMMap[pName] = workingMMap[pName];
+      }
+    });
+
+    // 協働筋の減衰（×0.75：p===0 部位の協働スコアも含め workingSynMMap 上で減衰）
+    const suppressedSynSet = new Set();
+    winner.machine.synergist.forEach((sName) => {
+      const beforeM = workingMMap[sName] || 0;
+      if (beforeM > 0) {
+        workingMMap[sName] = Number((beforeM * 0.75).toFixed(1));
+        suppressedSynSet.add(sName);
+      }
+      const beforeSyn = workingSynMMap[sName] || 0;
+      if (beforeSyn > 0) {
+        workingSynMMap[sName] = Number((beforeSyn * 0.75).toFixed(1));
+        suppressedSynSet.add(sName);
+      }
+    });
+    if (suppressedSynSet.size > 0) {
+      suppressedNames.push(`協働${suppressedSynSet.size}部位(×0.75)`);
+    }
+    suppressedNames.push(`同カテゴリ「${winner.machine.cat}」(×${catFactorUsed.toFixed(2)})`);
+
+    const rx = computePrescription(winner.machine);
+    menu.push({
+      rank: step + 1,
+      evalBeforeDedup: initialEvaluations.find((x) => x.machine.id === winner.machine.id),
+      evalAtPick: winner,
+      suppressedNames: suppressedNames,
+      rx: rx
+    });
+  }
+
+  lastComputed = {
+    muscleList: muscleList,
+    scoresByName: scoresByName,
+    evaluations: initialEvaluations,
+    menu: menu
+  };
+
+  return lastComputed;
+}
+
+// ============================================================================
+// 4. RENDERING
+// ============================================================================
+function renderAll() {
+  const result = runSimulation();
+  renderControlStates();
+  renderKpis(result);
+  renderMenuCards(result);
+  renderMachinesTable(result);
+  renderMachineInspector(result);
+  renderMuscleTable(result);
+  if (window.lucide) {
+    window.lucide.createIcons();
+  }
+}
+
+function renderMachinesOnly() {
+  if (!lastComputed) return;
+  renderMachinesTable(lastComputed);
+  renderMachineInspector(lastComputed);
+}
+
+function renderMusclesOnly() {
+  if (!lastComputed) return;
+  renderMuscleTable(lastComputed);
+}
+
+function renderControlStates() {
+  const goalEl = document.getElementById(`sel-goal`);
+  if (goalEl) goalEl.value = appState.goal;
+
+  const tsEl = document.getElementById(`sel-timeslot`);
+  if (tsEl) tsEl.value = appState.timeSlot;
+
+  const fbEl = document.getElementById(`sel-feedback`);
+  if (fbEl) fbEl.value = appState.feedback;
+
+  const bcapEl = document.getElementById(`sel-bcap`);
+  if (bcapEl) bcapEl.value = String(appState.bCap);
+
+  const dedupEl = document.getElementById(`sel-dedup`);
+  if (dedupEl) dedupEl.value = appState.dedupMode;
+
+  const volEl = document.getElementById(`sel-volume`);
+  if (volEl) {
+    volEl.value = (appState.highVolumeLoad || appState.volumeMode === `high_volume`) ? `high_volume` : `standard`;
+  }
+
+  const customPBadge = document.getElementById(`custom-p-badge`);
+  const customPResetWrap = document.getElementById(`custom-p-reset-wrap`);
+  const isCustomP = isPriorityCustomized();
+  if (customPBadge) {
+    customPBadge.innerHTML = isCustomP
+      ? `<span class="chip" data-status="warn" style="padding:1px 6px;font-size:0.7rem;">カスタム適用中</span>`
+      : `<span class="chip" data-status="info" style="padding:1px 6px;font-size:0.7rem;">テンプレ標準</span>`;
+  }
+  if (customPResetWrap) {
+    customPResetWrap.style.display = isCustomP ? `flex` : `none`;
+  }
+
+  const focusEl = document.getElementById(`sel-focus`);
+  if (focusEl) focusEl.value = appState.focusMuscle || ``;
+
+  [2, 4, 5].forEach((d) => {
+    const btn = document.getElementById(`dur-${d}`);
+    if (btn) btn.classList.toggle(`is-active`, appState.durationCount === d);
+  });
+
+  [`great`, `normal`, `tired`].forEach((c) => {
+    const btn = document.getElementById(`cond-${c}`);
+    if (btn) btn.classList.toggle(`is-active`, appState.condition === c);
+  });
+
+  const retBtn = document.getElementById(`mode-returning`);
+  const fstBtn = document.getElementById(`mode-firsttime`);
+  const fstBox = document.getElementById(`firsttime-box`);
+  if (retBtn) retBtn.classList.toggle(`is-active`, !appState.isFirstTime);
+  if (fstBtn) fstBtn.classList.toggle(`is-active`, appState.isFirstTime);
+  if (fstBox) fstBox.style.display = appState.isFirstTime ? `grid` : `none`;
+
+  const gEl = document.getElementById(`sel-gender`);
+  if (gEl) gEl.value = appState.gender || `male`;
+  const ageEl = document.getElementById(`sel-age`);
+  if (ageEl) ageEl.value = AGE_COEFFICIENTS[appState.ageGroup] ? appState.ageGroup : `20_30`;
+  const eEl = document.getElementById(`sel-exp`);
+  if (eEl) eEl.value = appState.exp;
+  const sBw = document.getElementById(`slider-bw`);
+  const nBw = document.getElementById(`input-bw`);
+  const rBw = document.getElementById(`bw-readout`);
+  if (sBw) sBw.value = appState.bodyWeight;
+  if (nBw) nBw.value = appState.bodyWeight;
+  if (rBw) rBw.textContent = `${appState.bodyWeight} kg`;
+
+  [`standard`, `night`, `morning`, `firsttime`, `legday`].forEach((p) => {
+    const pBtn = document.getElementById(`preset-${p}`);
+    if (pBtn) pBtn.classList.toggle(`is-active`, appState.activePreset === p);
+  });
+
+  renderInjuryChips();
+  renderGroupBatchControls();
+}
+
+function renderInjuryChips() {
+  const quickWrap = document.getElementById(`quick-injury-chips`);
+  const injuredSet = new Set(appState.injured);
+  if (quickWrap) {
+    quickWrap.innerHTML = QUICK_INJURY_MUSCLES.map((name) => {
+      const active = injuredSet.has(name);
+      return `<button type="button" class="toggle-chip ${active ? `is-injured` : ``}" onclick="toggleInjury('${name}')">${active ? `除外中：` : ``}${name}</button>`;
+    }).join(``);
+  }
+
+  const activeList = document.getElementById(`active-injuries-list`);
+  if (activeList) {
+    const extra = appState.injured.filter((n) => !QUICK_INJURY_MUSCLES.includes(n));
+    if (appState.injured.length === 0) {
+      activeList.innerHTML = `<span class="chip" data-status="muted">現在ケガ指定なし（全マシン稼働可）</span>`;
+    } else {
+      activeList.innerHTML = extra.map((name) =>
+        `<button type="button" class="toggle-chip is-injured" onclick="toggleInjury('${name}')">× ${name}</button>`
+      ).join(``);
+    }
+  }
+}
+
+function renderGroupBatchControls() {
+  const grid = document.getElementById(`group-batch-grid`);
+  if (!grid) return;
+
+  grid.innerHTML = GROUP_ORDER.map((grp) => {
+    const members = MUSCLES.filter((m) => m.group === grp);
+    const avgB = (members.reduce((sum, m) => sum + (appState.muscleInputs[m.id]?.b ?? 4), 0) / members.length).toFixed(1);
+    const avgS = (members.reduce((sum, m) => sum + (appState.muscleInputs[m.id]?.s ?? 2), 0) / members.length).toFixed(1);
+    const pValues = members.map((m) => {
+      const defP = m.p[appState.goal] !== undefined ? m.p[appState.goal] : 10;
+      const rawP = appState.muscleInputs[m.id]?.p;
+      return rawP !== undefined ? normalizePriorityTierVal(rawP, defP) : defP;
+    });
+    const allSameP = pValues.every((v) => v === pValues[0]);
+    const activeGroupP = allSameP ? pValues[0] : -1;
+
+    return `
+      <div class="batch-tile">
+        <div class="batch-tile-head">
+          <span>${grp}</span>
+          <span style="font-size:0.72rem; color:var(--on-surface-variant);">${members.length}部位</span>
+        </div>
+        <div class="field-group">
+          <label class="field-label" style="font-size:0.7rem;">
+            <span>優先度 P 一括変更</span>
+            <span>${allSameP ? `統一: ${pValues[0]}` : `個別混在`}</span>
+          </label>
+          <div style="display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:3px;">
+            <button type="button" class="btn btn-soft ${activeGroupP === 18 ? `is-active` : ``}" style="min-height:28px; padding:2px 4px; font-size:0.68rem;" onclick="setGroupP('${grp}', 18)" title="最優先 (18)">最優先</button>
+            <button type="button" class="btn btn-soft ${activeGroupP === 14 ? `is-active` : ``}" style="min-height:28px; padding:2px 4px; font-size:0.68rem;" onclick="setGroupP('${grp}', 14)" title="優先 (14)">優先</button>
+            <button type="button" class="btn btn-soft ${activeGroupP === 10 ? `is-active` : ``}" style="min-height:28px; padding:2px 4px; font-size:0.68rem;" onclick="setGroupP('${grp}', 10)" title="普通 (10)">普通</button>
+            <button type="button" class="btn btn-soft ${activeGroupP === 0 ? `is-active` : ``}" style="min-height:28px; padding:2px 4px; font-size:0.68rem;" onclick="setGroupP('${grp}', 0)" title="鍛えない (0)">対象外</button>
+          </div>
+        </div>
+        <div class="field-group">
+          <label class="field-label" style="font-size:0.7rem;">
+            <span>ブランク B</span>
+            <span>平均 ${avgB}日</span>
+          </label>
+          <div style="display:flex; gap:4px;">
+            <button type="button" class="btn btn-soft" style="min-height:30px; padding:2px 8px; flex:1;" onclick="adjustGroupB('${grp}', -1)">−1</button>
+            <button type="button" class="btn btn-soft" style="min-height:30px; padding:2px 8px; flex:1;" onclick="adjustGroupB('${grp}', 1)">+1</button>
+            <button type="button" class="btn btn-soft" style="min-height:30px; padding:2px 8px; flex:1;" onclick="setGroupB('${grp}', 0)">0日</button>
+          </div>
+        </div>
+        <div class="field-group">
+          <label class="field-label" style="font-size:0.7rem;">
+            <span>刺激 S</span>
+            <span>平均 ${avgS}日</span>
+          </label>
+          <div style="display:flex; gap:4px;">
+            <button type="button" class="btn btn-soft" style="min-height:30px; padding:2px 8px; flex:1;" onclick="adjustGroupS('${grp}', -1)">−1</button>
+            <button type="button" class="btn btn-soft" style="min-height:30px; padding:2px 8px; flex:1;" onclick="adjustGroupS('${grp}', 1)">+1</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join(``);
+}
+
+function renderKpis(result) {
+  const menuLen = result.menu.length;
+  const durLabels = { 2: `ショート（約20分）`, 4: `スタンダード（約45分）`, 5: `フル（約60分）` };
+  const kpiMenuCount = document.getElementById(`kpi-menu-count`);
+  const kpiMenuSub = document.getElementById(`kpi-menu-sub`);
+  if (kpiMenuCount) kpiMenuCount.textContent = `${menuLen} 種目`;
+  if (kpiMenuSub) kpiMenuSub.textContent = durLabels[appState.durationCount] || `カスタム`;
+
+  const topPick = result.menu[0];
+  const kpiTopScore = document.getElementById(`kpi-top-score`);
+  const kpiTopName = document.getElementById(`kpi-top-name`);
+  if (topPick) {
+    if (kpiTopScore) kpiTopScore.textContent = `${topPick.evalAtPick.finalScore.toFixed(1)} 点`;
+    if (kpiTopName) kpiTopName.textContent = topPick.evalAtPick.machine.name;
+  } else {
+    if (kpiTopScore) kpiTopScore.textContent = `0.0 点`;
+    if (kpiTopName) kpiTopName.textContent = `選定可能な種目なし`;
+  }
+
+  const activeMuscles = result.muscleList.filter((m) => m.status === `active`).length;
+  const recoveringMuscles = result.muscleList.filter((m) => m.status === `recovering`).length;
+  const untargetedMuscles = result.muscleList.filter((m) => m.status === `untargeted`).length;
+  const kpiActive = document.getElementById(`kpi-active-muscles`);
+  const kpiRec = document.getElementById(`kpi-recovery-count`);
+  if (kpiActive) kpiActive.textContent = `${activeMuscles} / 54`;
+  if (kpiRec) {
+    kpiRec.textContent = untargetedMuscles > 0
+      ? `超回復中: ${recoveringMuscles}部位 ／ 対象外: ${untargetedMuscles}部位`
+      : `超回復ガード中: ${recoveringMuscles}部位`;
+  }
+
+  const excludedMacs = result.evaluations.filter((e) => e.injuryMultiplier === 0).length;
+  const kpiExcl = document.getElementById(`kpi-excluded-machines`);
+  const kpiSafetySub = document.getElementById(`kpi-safety-sub`);
+  const safetyCard = document.getElementById(`kpi-safety-card`);
+  if (kpiExcl) kpiExcl.textContent = `${excludedMacs} / 29`;
+  if (appState.injured.length > 0) {
+    if (kpiSafetySub) {
+      kpiSafetySub.textContent = `ケガ指定 ${appState.injured.length}部位により完全除外`;
+      kpiSafetySub.setAttribute(`data-status`, `alert`);
+    }
+    if (safetyCard) safetyCard.setAttribute(`data-status`, `alert`);
+  } else {
+    if (kpiSafetySub) {
+      kpiSafetySub.textContent = `ケガ部位なし・全機安全稼働`;
+      kpiSafetySub.setAttribute(`data-status`, `ok`);
+    }
+    if (safetyCard) safetyCard.setAttribute(`data-status`, `ok`);
+  }
+}
+
+function renderMenuCards(result) {
+  const container = document.getElementById(`recommended-menu-container`);
+  const badgeWrap = document.getElementById(`menu-condition-badge`);
+  const filterSum = document.getElementById(`active-filter-summary`);
+
+  const condLabels = { great: `絶好調 (3セット)`, normal: `普通 (3セット)`, tired: `疲労気味 (−5% / 2セット)` };
+  const tsLabels = { morning: `朝〜午前`, evening: `夕方〜夜`, night: `就寝前 (21時〜)`, daytime: `日中` };
+  const sessionNo = appState.sessionCount || 1;
+
+  if (badgeWrap) {
+    const statusAttr = appState.condition === `tired` ? `warn` : `ok`;
+    const goalLabel = GOAL_LABELS[appState.goal] || GOAL_LABELS.body_make_male;
+    const ageLabel = AGE_LABELS[appState.ageGroup] || AGE_LABELS['20_30'];
+    badgeWrap.innerHTML = `<span class="chip" data-status="info">セッション #${sessionNo}</span> <span class="chip" data-status="${statusAttr}">${goalLabel} ・ ${ageLabel} ・ ${tsLabels[appState.timeSlot]} ・ ${condLabels[appState.condition]}</span>`;
+  }
+
+  if (filterSum) {
+    const parts = [];
+    if (appState.timeSlot === `morning`) parts.push(`朝活乗算補正: 腹直筋・腹横筋・脊柱起立筋群・腸腰筋・二頭筋・三頭筋（主動×1.25 / 協働×1.10）`);
+    if (appState.timeSlot === `evening`) parts.push(`夕方推奨乗算補正: 中臀筋・僧帽筋中部下部（主動×1.08 / 協働×1.02）`);
+    if (appState.timeSlot === `night`) parts.push(`就寝前抑制フィルター: 大腿四頭筋・ハム・大臀筋・大胸筋全般・広背筋・脊柱起立筋群（主動×0.30 / 協働×0.65）`);
+    if (appState.volumeMode === `high_volume` || appState.feedback === `too_hard`) parts.push(`高ボリューム/高負荷回復延長: プレス・プル対象9部位の超回復 R_i +1日（2日→3日）`);
+    if (appState.ageGroup === `50s` || appState.ageGroup === `60_plus`) parts.push(`年齢層補正（${AGE_LABELS[appState.ageGroup]}）: 全54部位の超回復 R_i +1日`);
+    if (appState.focusMuscle) parts.push(`追加フォーカス: ${appState.focusMuscle}（主動×1.25 / 協働×1.10）`);
+    if (appState.injured.length > 0) parts.push(`ケガ完全除外: ${appState.injured.join(`、 `)}`);
+    filterSum.textContent = parts.length > 0 ? parts.join(` ／ `) : `標準条件（時間帯の乗算補正・ケガ除外なし）`;
+  }
+
+  if (!container) return;
+  if (result.menu.length === 0) {
+    container.innerHTML = `
+      <div class="empty-banner">
+        <strong>現在選定可能な種目がありません</strong>
+        <span>すべての筋肉が「超回復期間中（B &lt; R）」または「ケガ除外」によりスコア0となっています。左のパネルでケガを解除するか、上部の「実施して+3日進める」またはブランク日数（B）を増やして確認してください。</span>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = result.menu.map((item) => {
+    const ev = item.evalAtPick;
+    const mac = ev.machine;
+    const rx = item.rx;
+    const primaryTags = mac.primary.map((p) => `<span class="chip" data-status="info">${p}</span>`).join(``);
+    const synTags = ev.synergistDetails
+      .filter((d) => d.isTop2)
+      .map((d) => `<span class="chip" data-status="muted">${d.name} (上位)</span>`)
+      .join(``);
+    const synExtra = mac.synergist.length > 2 ? `<span class="chip" data-status="muted">他${mac.synergist.length - 2}部位</span>` : ``;
+    const rotBadge = ev.rotationBonus > 0
+      ? `<span class="chip" data-status="info">未実施${ev.sessionsSinceUsed}回 (+${ev.rotationBonus.toFixed(1)})</span>`
+      : `<span class="chip" data-status="warn">前回実施済 (+0.0)</span>`;
+    const modBadges = ev.bonusReasons.map((r) => `<span class="chip" data-status="ok">${r}</span>`).join(``)
+      + ev.penaltyReasons.map((r) => `<span class="chip" data-status="warn">${r}</span>`).join(``);
+    const rxBadges = rx.reasons.map((r) => `<span class="chip" data-status="muted">${r}</span>`).join(``);
+
+    return `
+      <article class="menu-card">
+        <div class="menu-card-head">
+          <div>
+            <span class="rank-badge">第 ${item.rank} 種目 ・ ${mac.cat}</span>
+            <h3 class="menu-title">${mac.name}</h3>
+          </div>
+          <div class="menu-score-box">
+            <div class="menu-score-num">${ev.finalScore.toFixed(1)}</div>
+            <div class="menu-score-cap">選定時M値</div>
+          </div>
+        </div>
+
+        <div class="prescription-strip">
+          <div>
+            <div class="rx-item-label">推奨重量</div>
+            <div class="rx-item-val">${rx.weight.toFixed(1)} kg</div>
+          </div>
+          <div>
+            <div class="rx-item-label">目標回数</div>
+            <div class="rx-item-val">${rx.reps} 回</div>
+          </div>
+          <div>
+            <div class="rx-item-label">セット数</div>
+            <div class="rx-item-val">${rx.sets} セット</div>
+          </div>
+        </div>
+
+        <div class="muscle-tags">
+          <span class="tag-prefix">主動筋 (最大70%+上位平均30%):</span>${primaryTags}
+        </div>
+        <div class="muscle-tags">
+          <span class="tag-prefix">協働上位2 (0.3×):</span>${synTags}${synExtra}
+        </div>
+        <div class="muscle-tags">
+          ${rotBadge}${modBadges}${rxBadges}
+        </div>
+
+        <div class="dedup-trace">
+          <i data-lucide="shield-check" style="width:15px;height:15px;flex-shrink:0;color:var(--primary);margin-top:2px;" aria-hidden="true"></i>
+          <span>
+            ${item.suppressedNames.length > 0
+              ? `重複制御：${item.suppressedNames.join(` ／ `)} を抑制し次種目を選定`
+              : `重複制御：該当主動筋スコア0のため変更なし`}
+          </span>
+        </div>
+      </article>
+    `;
+  }).join(``);
+}
+
+function renderMachinesTable(result) {
+  const tbody = document.getElementById(`machine-ranking-tbody`);
+  if (!tbody) return;
+
+  const catFilter = document.getElementById(`filter-machine-cat`)?.value || `all`;
+  const sortMode = document.getElementById(`filter-machine-sort`)?.value || `final_desc`;
+
+  const pickedRankMap = {};
+  result.menu.forEach((m) => { pickedRankMap[m.evalAtPick.machine.id] = m.rank; });
+
+  let rows = result.evaluations.slice();
+  if (catFilter !== `all`) {
+    rows = rows.filter((e) => e.machine.cat === catFilter);
+  }
+
+  if (sortMode === `final_desc`) {
+    rows.sort((a, b) => b.finalScore - a.finalScore || b.rawScore - a.rawScore);
+  } else if (sortMode === `raw_desc`) {
+    rows.sort((a, b) => b.rawScore - a.rawScore);
+  } else {
+    rows.sort((a, b) => a.machine.name.localeCompare(b.machine.name, `ja`));
+  }
+
+  const maxScore = Math.max(1, ...result.evaluations.map((e) => Math.max(e.finalScore, e.rawScore)));
+
+  tbody.innerHTML = rows.map((ev, idx) => {
+    const id = ev.machine.id;
+    const isSelected = appState.selectedMachineId === id;
+    const pickedRank = pickedRankMap[id];
+    const mulVal = ev.timeMultiplier * ev.focusMultiplier;
+    const modStr = mulVal !== 1.0 ? `×${mulVal.toFixed(2)}` : `×1.00`;
+
+    const pPct = Math.min(100, (ev.primarySum / maxScore) * 100);
+    const sPct = Math.min(100 - pPct, (ev.synergistSum / maxScore) * 100);
+    const bonusSum = ev.rotationBonus + ev.structureBonus;
+    const bPct = bonusSum > 0 ? Math.min(100 - pPct - sPct, (bonusSum / maxScore) * 100) : 0;
+
+    let statusBadge = `<span class="chip" data-status="muted">候補</span>`;
+    if (ev.injuryMultiplier === 0) {
+      statusBadge = `<span class="chip" data-status="alert">ケガ除外</span>`;
+    } else if (ev.hasUntargetedPrimary) {
+      statusBadge = `<span class="chip" data-status="muted">対象外除外</span>`;
+    } else if (pickedRank) {
+      statusBadge = `<span class="chip" data-status="ok">第${pickedRank}種目</span>`;
+    } else if (ev.finalScore === 0) {
+      statusBadge = `<span class="chip" data-status="warn">スコア0</span>`;
+    }
+
+    return `
+      <tr class="${isSelected ? `is-selected-row` : ``} ${ev.injuryMultiplier === 0 || ev.hasUntargetedPrimary ? `is-excluded-row` : ``}" onclick="selectMachine('${id}')">
+        <td class="num-col">${idx + 1}</td>
+        <td>
+          <div style="font-weight:700;">${ev.machine.name}</div>
+          <div style="font-size:0.74rem;color:var(--on-surface-variant);">${ev.machine.cat}</div>
+        </td>
+        <td class="num-col">${ev.primarySum.toFixed(1)}</td>
+        <td class="num-col">${ev.synergistSum.toFixed(1)}</td>
+        <td class="num-col">
+          <button type="button" class="btn btn-soft" style="min-height:26px;padding:1px 6px;font-size:0.74rem;" onclick="event.stopPropagation(); cycleMachineHistory('${id}')" title="クリックして未実施セッション数を切り替え（ローテーション検証）">
+            +${(ev.rotationBonus + ev.structureBonus).toFixed(1)} (未${ev.sessionsSinceUsed}回)
+          </button>
+        </td>
+        <td class="num-col">${modStr}</td>
+        <td class="num-col" style="font-weight:800;color:${ev.injuryMultiplier === 0 ? `var(--error)` : `var(--primary)`};">${ev.finalScore.toFixed(1)}</td>
+        <td>
+          <div class="score-bar-track" title="青:主動筋平均 / 緑:協働上位2平均 / 橙:未実施ローテーション加点">
+            <div class="bar-seg-primary" style="width:${pPct.toFixed(1)}%;"></div>
+            <div class="bar-seg-synergist" style="width:${sPct.toFixed(1)}%;"></div>
+            <div class="bar-seg-bonus" style="width:${bPct.toFixed(1)}%;"></div>
+          </div>
+        </td>
+        <td>${statusBadge}</td>
+      </tr>
+    `;
+  }).join(``);
+}
+
+function renderMachineInspector(result) {
+  const ev = result.evaluations.find((e) => e.machine.id === appState.selectedMachineId) || result.evaluations[0];
+  const nameEl = document.getElementById(`inspector-name`);
+  const catEl = document.getElementById(`inspector-cat`);
+  const bodyEl = document.getElementById(`inspector-body`);
+  if (!ev || !bodyEl) return;
+
+  if (nameEl) nameEl.textContent = ev.machine.name;
+  if (catEl) catEl.textContent = ev.machine.cat;
+
+  const pRows = ev.primaryDetails.map((d) => {
+    let roleTag = `[上位2外(0)]`;
+    if (d.isExcludedTfl) {
+      roleTag = `[対象外 P=0 (分母除外)]`;
+    } else if (d.pVal === 0) {
+      roleTag = `[対象外 P=0 → マシン除外]`;
+    } else if (d.isMax) {
+      roleTag = `[最大70%+上位平均30%]`;
+    } else if (d.isTop2) {
+      roleTag = `[上位2平均30%枠]`;
+    }
+    return `<div class="formula-line" style="${d.isTop2 ? `` : `opacity:0.55;`}"><span>〇 ${d.name} (M=${d.m}) ${roleTag}</span><span class="formula-val">+${d.weighted.toFixed(1)}</span></div>`;
+  }).join(``);
+  const sRows = ev.synergistDetails.map((d) => {
+    const synTag = d.pVal === 0 ? ` [P=0 協働P=6]` : ``;
+    return `<div class="formula-line" style="${d.isTop2 ? `` : `opacity:0.55;`}"><span>△ ${d.name} (M=${d.m}${synTag}) ${d.isTop2 ? `上位採用×0.3` : `上位2外(0)`}</span><span class="formula-val">+${d.weighted.toFixed(1)}</span></div>`;
+  }).join(``);
+
+  bodyEl.innerHTML = `
+    <div class="formula-breakdown">
+      <div style="font-size:0.78rem;font-weight:700;color:var(--on-surface-variant);">Step 2: 正規化スコア（主動[最大70%+上位2平均30%]＋協働上位2＋未実施加点）</div>
+      ${pRows}
+      <div class="formula-line" style="background:var(--surface-container-low);padding:2px 6px;border-radius:4px;"><span>主動筋スコア (最大${ev.primaryMax}×0.7 + 上位2平均${ev.primaryAvg.toFixed(1)}×0.3)</span><span class="formula-val">${ev.primarySum.toFixed(1)} 点</span></div>
+      ${sRows}
+      <div class="formula-line" style="background:var(--surface-container-low);padding:2px 6px;border-radius:4px;"><span>協働筋上位2部位 平均 (×0.3)</span><span class="formula-val">+${ev.synergistSum.toFixed(1)} 点</span></div>
+      <div class="formula-line"><span>種目タイプ適性補正</span><span class="formula-val">+${ev.structureBonus.toFixed(1)} 点</span></div>
+      <div class="formula-line"><span>マシン未実施ボーナス (${ev.sessionsSinceUsed}回経過・3段階スケーリング)</span><span class="formula-val">+${ev.rotationBonus.toFixed(1)} 点</span></div>
+      <div class="formula-line"><span>基礎スコア（合計M値<sub>raw</sub>）</span><span class="formula-val">${ev.rawScore.toFixed(1)} 点</span></div>
+    </div>
+
+    <div class="formula-breakdown">
+      <div style="font-size:0.78rem;font-weight:700;color:var(--on-surface-variant);">Step 3: 時間帯・フォーカス乗算補正 ＆ 安全フィルター</div>
+      <div class="formula-line">
+        <span>時間帯補正 (${ev.bonusReasons.length || ev.penaltyReasons.length ? ev.bonusReasons.concat(ev.penaltyReasons).join(`・`) : `標準 ×1.00`})</span>
+        <span class="formula-val">× ${ev.timeMultiplier.toFixed(2)}</span>
+      </div>
+      <div class="formula-line">
+        <span>フォーカス部位補正 (${appState.focusMuscle ? appState.focusMuscle : `指定なし`})</span>
+        <span class="formula-val">× ${ev.focusMultiplier.toFixed(2)}</span>
+      </div>
+      <div class="formula-line">
+        <span>ケガフィルター (${ev.hitInjuries.length ? `除外: ${ev.hitInjuries.join(`・`)}` : `安全`})</span>
+        <span class="formula-val">× ${ev.injuryMultiplier}</span>
+      </div>
+      <div class="formula-line">
+        <span>鍛えない主動筋フィルター (${ev.hasUntargetedPrimary ? `対象外主動筋あり` : `適合`})</span>
+        <span class="formula-val">× ${ev.untargetedMultiplier}</span>
+      </div>
+      <div class="formula-line">
+        <span>初期最終スコア（合計M値<sub>final</sub>）</span>
+        <span class="formula-val">${ev.finalScore.toFixed(1)} 点</span>
+      </div>
+    </div>
+  `;
+}
+
+function renderMuscleTable(result) {
+  const tbody = document.getElementById(`muscle-matrix-tbody`);
+  if (!tbody) return;
+
+  const tFilter = document.getElementById(`filter-muscle-time`)?.value || `all`;
+  const gFilter = document.getElementById(`filter-muscle-group`)?.value || `all`;
+  const sFilter = document.getElementById(`filter-muscle-status`)?.value || `all`;
+
+  let rows = result.muscleList.slice();
+  if (tFilter !== `all`) rows = rows.filter((m) => m.timeCat === tFilter);
+  if (gFilter !== `all`) rows = rows.filter((m) => m.group === gFilter);
+  if (sFilter !== `all`) rows = rows.filter((m) => m.status === sFilter);
+
+  if (rows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--on-surface-variant);padding:var(--space-lg);">条件に一致する筋肉はありません。フィルターを変更してください。</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map((m) => {
+    let statusChip = `<span class="chip" data-status="ok">回復完了</span>`;
+    if (m.status === `injured`) {
+      statusChip = `<span class="chip" data-status="alert">ケガ除外 (M=0)</span>`;
+    } else if (m.status === `untargeted`) {
+      statusChip = `<span class="chip" data-status="muted">対象外 (鍛えない M=0)</span>`;
+    } else if (m.status === `recovering`) {
+      statusChip = `<span class="chip" data-status="warn">超回復中 B&lt;R (M=0)</span>`;
+    }
+
+    const timeTag = m.timeCat === `other` ? `` : `<span class="chip" data-status="${m.timeCat === `night_avoid` ? `warn` : `info`}" style="margin-left:4px;">${TIME_CAT_LABELS[m.timeCat]}</span>`;
+    const cappedNote = m.bRaw > m.bCapped ? `<span style="font-size:0.7rem;color:var(--on-surface-variant);display:block;">上限${m.bCapped}日適用</span>` : ``;
+    const isCustomRowP = m.p !== m.pTemplate;
+    const rDiff = m.r - m.rBase;
+    const rTags = [];
+    if (m.isExtendedR) rTags.push(`高負荷+1`);
+    if (m.isAgeExtendedR) rTags.push(`年齢+1`);
+    const rNote = rDiff > 0
+      ? `<span style="font-size:0.7rem;color:var(--warning);display:block;">(標準${m.rBase}+${rDiff}: ${rTags.join(`・`)})</span>`
+      : ``;
+    const mValDisplay = m.status === `untargeted`
+      ? `0.0 <span style="font-size:0.75rem;font-weight:600;color:var(--on-surface-variant);">(協働:${m.synMVal.toFixed(1)})</span>`
+      : m.mVal.toFixed(1);
+
+    return `
+      <tr>
+        <td style="font-weight:700;">${m.name}</td>
+        <td>
+          <span>${m.group}</span>
+          ${timeTag}
+        </td>
+        <td class="num-col">
+          <input type="number" class="inline-input-mini" min="0" max="30" value="${m.bRaw}" aria-label="${m.name}のブランク日数" onchange="updateMuscleInput('${m.id}', 'b', this.value)">
+          ${cappedNote}
+        </td>
+        <td class="num-col">
+          <select class="field-control" style="min-height:34px; padding:2px 24px 2px 8px; font-size:0.8rem; width:auto; min-width:136px; ${isCustomRowP ? `border-color:var(--primary); background:var(--surface-container-low); font-weight:700;` : ``}" aria-label="${m.name}の優先度" onchange="updateMuscleP('${m.id}', this.value)">
+            <option value="18" ${m.p === 18 ? `selected` : ``}>★★ 最優先 (18)</option>
+            <option value="14" ${m.p === 14 ? `selected` : ``}>★ 優先 (14)</option>
+            <option value="10" ${m.p === 10 ? `selected` : ``}>ー 普通 (10)</option>
+            <option value="0" ${m.p === 0 ? `selected` : ``}>× 鍛えない (0)</option>
+          </select>
+        </td>
+        <td class="num-col">
+          <span>${m.r} 日</span>
+          ${rNote}
+        </td>
+        <td class="num-col">
+          <input type="number" class="inline-input-mini" min="0" max="30" step="0.5" value="${m.s}" aria-label="${m.name}の刺激日数" onchange="updateMuscleInput('${m.id}', 's', this.value)">
+        </td>
+        <td class="num-col" style="font-weight:800;font-size:1rem;color:${m.mVal > 0 ? `var(--primary)` : `var(--on-surface-variant)`};">${mValDisplay}</td>
+        <td>${statusChip}</td>
+      </tr>
+    `;
+  }).join(``);
+}
+
+// ============================================================================
+// 5. INTERACTION HANDLERS (Hoisted function declarations)
+// ============================================================================
+function updateGoal(val) {
+  appState.goal = val;
+  applyGoalTemplateToInputs(val);
+  appState.activePreset = ``;
+  renderAll();
+  persistState();
+}
+
+function resetPriorityToTemplate() {
+  applyGoalTemplateToInputs(appState.goal || `body_make_male`);
+  appState.activePreset = ``;
+  renderAll();
+  persistState();
+}
+
+function updateTimeSlot(val) {
+  appState.timeSlot = val;
+  appState.activePreset = ``;
+  renderAll();
+  persistState();
+}
+
+function updateDuration(count) {
+  appState.durationCount = Number(count);
+  appState.activePreset = ``;
+  renderAll();
+  persistState();
+}
+
+function updateCondition(cond) {
+  appState.condition = cond;
+  appState.activePreset = ``;
+  renderAll();
+  persistState();
+}
+
+function updateFeedback(fb) {
+  appState.feedback = fb;
+  appState.activePreset = ``;
+  renderAll();
+  persistState();
+}
+
+function updateFirstTimeMode(isFirst) {
+  appState.isFirstTime = Boolean(isFirst);
+  appState.activePreset = ``;
+  renderAll();
+  persistState();
+}
+
+function updateUserProfile(key, val) {
+  appState[key] = val;
+  if (key === `gender` && (appState.goal === `body_make_male` || appState.goal === `body_make_female`)) {
+    const nextGoal = val === `female` ? `body_make_female` : `body_make_male`;
+    if (appState.goal !== nextGoal) {
+      appState.goal = nextGoal;
+      applyGoalTemplateToInputs(nextGoal);
+    }
+  }
+  appState.activePreset = ``;
+  renderAll();
+  persistState();
+}
+
+function syncBodyWeightFromSlider(val) {
+  const num = Math.max(40, Math.min(120, Number(val) || 65));
+  appState.bodyWeight = num;
+  const inputEl = document.getElementById(`input-bw`);
+  if (inputEl) inputEl.value = num;
+  const readEl = document.getElementById(`bw-readout`);
+  if (readEl) readEl.textContent = `${num} kg`;
+  renderAll();
+  persistState();
+}
+
+function syncBodyWeightFromNumber(val) {
+  const num = Math.max(40, Math.min(120, Number(val) || 65));
+  appState.bodyWeight = num;
+  const sliderEl = document.getElementById(`slider-bw`);
+  if (sliderEl) sliderEl.value = num;
+  const readEl = document.getElementById(`bw-readout`);
+  if (readEl) readEl.textContent = `${num} kg`;
+  renderAll();
+  persistState();
+}
+
+function updateBCap(val) {
+  appState.bCap = Number(val);
+  appState.activePreset = ``;
+  renderAll();
+  persistState();
+}
+
+function updateDedupMode(val) {
+  appState.dedupMode = val;
+  appState.activePreset = ``;
+  renderAll();
+  persistState();
+}
+
+function updateVolumeMode(val) {
+  appState.volumeMode = val;
+  appState.highVolumeLoad = val === `high_volume`;
+  appState.activePreset = ``;
+  renderAll();
+  persistState();
+}
+
+function updateFocusMuscle(val) {
+  appState.focusMuscle = val;
+  appState.activePreset = ``;
+  renderAll();
+  persistState();
+}
+
+function toggleInjury(name) {
+  const idx = appState.injured.indexOf(name);
+  if (idx >= 0) {
+    appState.injured.splice(idx, 1);
+  } else {
+    appState.injured.push(name);
+  }
+  appState.activePreset = ``;
+  renderAll();
+  persistState();
+}
+
+function addSelectedInjury() {
+  const sel = document.getElementById(`sel-injury-add`);
+  if (!sel || !sel.value) return;
+  if (!appState.injured.includes(sel.value)) {
+    appState.injured.push(sel.value);
+  }
+  sel.value = ``;
+  appState.activePreset = ``;
+  renderAll();
+  persistState();
+}
+
+function adjustGroupB(group, delta) {
+  MUSCLES.filter((m) => m.group === group).forEach((m) => {
+    const cur = appState.muscleInputs[m.id]?.b ?? 4;
+    appState.muscleInputs[m.id].b = Math.max(0, Math.min(30, cur + delta));
+  });
+  appState.activePreset = ``;
+  renderAll();
+  persistState();
+}
+
+function setGroupB(group, val) {
+  MUSCLES.filter((m) => m.group === group).forEach((m) => {
+    appState.muscleInputs[m.id].b = Math.max(0, Math.min(30, val));
+  });
+  appState.activePreset = ``;
+  renderAll();
+  persistState();
+}
+
+function adjustGroupS(group, delta) {
+  MUSCLES.filter((m) => m.group === group).forEach((m) => {
+    const cur = Number(appState.muscleInputs[m.id]?.s ?? 2);
+    appState.muscleInputs[m.id].s = Math.max(0, Math.min(30, Number((cur + delta).toFixed(1))));
+  });
+  appState.activePreset = ``;
+  renderAll();
+  persistState();
+}
+
+function setGroupP(group, pVal) {
+  const tierVal = normalizePriorityTierVal(pVal, 10);
+  MUSCLES.filter((m) => m.group === group).forEach((m) => {
+    if (!appState.muscleInputs[m.id]) {
+      appState.muscleInputs[m.id] = { b: 4, s: 2, p: tierVal };
+    } else {
+      appState.muscleInputs[m.id].p = tierVal;
+    }
+  });
+  appState.activePreset = ``;
+  renderAll();
+  persistState();
+}
+
+function updateMuscleP(muscleId, rawVal) {
+  const mObj = MUSCLES.find((x) => x.id === muscleId);
+  const defP = mObj && mObj.p[appState.goal] !== undefined ? mObj.p[appState.goal] : 10;
+  const tierVal = normalizePriorityTierVal(rawVal, defP);
+  if (!appState.muscleInputs[muscleId]) {
+    appState.muscleInputs[muscleId] = { b: 4, s: 2, p: tierVal };
+  } else {
+    appState.muscleInputs[muscleId].p = tierVal;
+  }
+  appState.activePreset = ``;
+  renderAll();
+  persistState();
+}
+
+function updateMuscleInput(muscleId, field, rawVal) {
+  const parsed = field === `s` ? parseFloat(rawVal) : parseInt(rawVal, 10);
+  const val = Math.max(0, Math.min(30, Number((parsed || 0).toFixed(1))));
+  const mObj = MUSCLES.find((x) => x.id === muscleId);
+  const defP = mObj && mObj.p[appState.goal] !== undefined ? mObj.p[appState.goal] : 10;
+  if (!appState.muscleInputs[muscleId]) appState.muscleInputs[muscleId] = { b: 4, s: 2, p: defP };
+  appState.muscleInputs[muscleId][field] = val;
+  appState.activePreset = ``;
+  renderAll();
+  persistState();
+}
+
+function selectMachine(machineId) {
+  appState.selectedMachineId = machineId;
+  renderMachinesOnly();
+  persistState();
+}
+
+function cycleMachineHistory(machineId) {
+  if (!appState.machineHistory) appState.machineHistory = createDefaultMachineHistory();
+  const cur = Number(appState.machineHistory[machineId] ?? 4);
+  // 0 -> 3 -> 6 -> 12 -> 20 -> 0 の順でトグル
+  let nextVal = 0;
+  if (cur < 3) nextVal = 3;
+  else if (cur < 6) nextVal = 6;
+  else if (cur < 12) nextVal = 12;
+  else if (cur < 20) nextVal = 20;
+  else nextVal = 0;
+  appState.machineHistory[machineId] = nextVal;
+  appState.activePreset = ``;
+  renderAll();
+  persistState();
+}
+
+function advanceSessionDay(daysToAdvance) {
+  if (!lastComputed) runSimulation();
+  const days = Math.max(1, Number(daysToAdvance) || 1);
+  const pickedMacIds = new Set((lastComputed?.menu || []).map((item) => item.evalAtPick.machine.id));
+
+  // 今回実施したメニューの主動筋・協働筋を集計
+  const trainedPrimary = new Set();
+  const trainedSynergist = new Set();
+  (lastComputed?.menu || []).forEach((item) => {
+    item.evalAtPick.machine.primary.forEach((p) => trainedPrimary.add(p));
+    item.evalAtPick.machine.synergist.forEach((s) => trainedSynergist.add(s));
+  });
+
+  // 筋肉の B_i (ブランク日数) と S_i (今月の刺激日数・小数第1位保持) を更新
+  const decayFactor = Math.pow(0.92, days);
+  MUSCLES.forEach((m) => {
+    const inp = appState.muscleInputs[m.id] || { b: 4, s: 2 };
+    const curB = Math.max(0, Number(inp.b) || 0);
+    const curS = Math.max(0, Number(inp.s) || 0);
+
+    if (trainedPrimary.has(m.name)) {
+      // 主動筋として使われた筋肉: 0にリセット後 days 日経過、S_i は指数減衰後に +1.5 (上限12)
+      inp.b = Math.min(30, days);
+      inp.s = Math.min(12, Number(((curS * decayFactor) + 1.5).toFixed(1)));
+    } else if (trainedSynergist.has(m.name)) {
+      // 協働筋としてのみ使われた筋肉: 日またぎのブランク進行は止めず、S_i に +0.3 の微刺激のみ加算
+      inp.b = Math.min(30, curB + days);
+      inp.s = Math.max(0, Number(((curS * decayFactor) + 0.3).toFixed(1)));
+    } else {
+      // 今回使われなかった筋肉: ブランクが days 日増加、S_i は指数減衰で確実に低下
+      inp.b = Math.min(30, curB + days);
+      inp.s = Math.max(0, Number((curS * decayFactor).toFixed(1)));
+    }
+    appState.muscleInputs[m.id] = inp;
+  });
+
+  // マシン別の未実施セッション数を更新（今回使ったマシンは0にリセット、使わなかったマシンは上限なしで+1）
+  if (!appState.machineHistory) appState.machineHistory = createDefaultMachineHistory();
+  MACHINES.forEach((mac) => {
+    if (pickedMacIds.has(mac.id)) {
+      appState.machineHistory[mac.id] = 0;
+    } else {
+      const cur = Number(appState.machineHistory[mac.id] ?? 4);
+      appState.machineHistory[mac.id] = cur + 1;
+    }
+  });
+
+  appState.sessionCount = (Number(appState.sessionCount) || 1) + 1;
+  appState.activePreset = ``;
+  renderAll();
+  persistState();
+}
+
+function applyPreset(presetKey) {
+  appState = createInitialState();
+  appState.activePreset = presetKey;
+
+  if (presetKey === `standard`) {
+    appState.goal = `body_make_male`;
+    appState.timeSlot = `evening`;
+    appState.durationCount = 4;
+    appState.condition = `normal`;
+    applyGoalTemplateToInputs(`body_make_male`);
+  } else if (presetKey === `night`) {
+    appState.goal = `body_make_male`;
+    appState.timeSlot = `night`;
+    appState.durationCount = 4;
+    appState.condition = `tired`;
+    appState.injured = [`三角筋前部`, `三角筋中部`];
+    applyGoalTemplateToInputs(`body_make_male`);
+  } else if (presetKey === `morning`) {
+    appState.goal = `health`;
+    appState.timeSlot = `morning`;
+    appState.durationCount = 2;
+    appState.condition = `great`;
+    appState.feedback = `too_easy`;
+    applyGoalTemplateToInputs(`health`);
+  } else if (presetKey === `firsttime`) {
+    appState.goal = `body_make_male`;
+    appState.timeSlot = `daytime`;
+    appState.durationCount = 4;
+    appState.isFirstTime = true;
+    appState.gender = `male`;
+    appState.bodyWeight = 65;
+    appState.exp = `beginner`;
+    applyGoalTemplateToInputs(`body_make_male`);
+  } else if (presetKey === `legday`) {
+    appState.goal = `body_make_male`;
+    appState.timeSlot = `evening`;
+    appState.durationCount = 4;
+    MUSCLES.forEach((m) => {
+      const defP = m.p.body_make_male !== undefined ? m.p.body_make_male : 10;
+      if (m.group === `胸` || m.group === `背中` || m.group === `肩` || m.group === `腕`) {
+        appState.muscleInputs[m.id] = { b: 1, s: 6, p: defP };
+      } else {
+        appState.muscleInputs[m.id] = { b: 6, s: 1, p: defP };
+      }
+    });
+  }
+
+  renderAll();
+  persistState();
+}
+
+function handleResetAll(btn) {
+  if (btn.dataset.armed !== `true`) {
+    btn.dataset.armed = `true`;
+    btn.classList.add(`btn-danger-armed`);
+    btn.textContent = `もう一度押してリセット`;
+    setTimeout(() => {
+      if (btn.dataset.armed === `true`) {
+        btn.dataset.armed = `false`;
+        btn.classList.remove(`btn-danger-armed`);
+        btn.innerHTML = `<i data-lucide="rotate-ccw" style="width:16px;height:16px;" aria-hidden="true"></i> 初期値に戻す`;
+        if (window.lucide) window.lucide.createIcons();
+      }
+    }, 3500);
+    return;
+  }
+  btn.dataset.armed = `false`;
+  btn.classList.remove(`btn-danger-armed`);
+  btn.innerHTML = `<i data-lucide="rotate-ccw" style="width:16px;height:16px;" aria-hidden="true"></i> 初期値に戻す`;
+  applyPreset(`standard`);
+}
+
+function exportMenuCsv() {
+  if (!lastComputed) return;
+  const lines = [`順位,マシン名,カテゴリ,推奨重量(kg),回数,セット数,選定時合計M値,主動筋`];
+  lastComputed.menu.forEach((item) => {
+    const mac = item.evalAtPick.machine;
+    lines.push(`${item.rank},"${mac.name}","${mac.cat}",${item.rx.weight},${item.rx.reps},${item.rx.sets},${item.evalAtPick.finalScore.toFixed(1)},"${mac.primary.join(` / `)}"`);
+  });
+  const csvContent = `\uFEFF` + lines.join(`\n`);
+  if (window.notebookAppApi && typeof window.notebookAppApi.triggerFileDownload === `function`) {
+    window.notebookAppApi.triggerFileDownload({
+      content: csvContent,
+      contentType: `text/csv`,
+      encoding: `UTF-8`,
+      filename: `noukin_menu_simulation.csv`
+    });
+  }
+}
+
+// ============================================================================
+// 6. PERSISTENCE & INITIALIZATION
+// ============================================================================
+function populateSelectDropdowns() {
+  const focusSel = document.getElementById(`sel-focus`);
+  const injSel = document.getElementById(`sel-injury-add`);
+  MUSCLES.forEach((m) => {
+    if (focusSel) {
+      const opt = document.createElement(`option`);
+      opt.value = m.name;
+      opt.textContent = `${m.name} (${m.group})`;
+      focusSel.appendChild(opt);
+    }
+    if (injSel) {
+      const opt2 = document.createElement(`option`);
+      opt2.value = m.name;
+      opt2.textContent = `${m.name} (${m.group})`;
+      injSel.appendChild(opt2);
+    }
+  });
+}
+
+function persistState() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    if (window.notebookAppApi && typeof window.notebookAppApi.setAppState === `function`) {
+      try {
+        await window.notebookAppApi.setAppState(appState);
+      } catch (e) {
+        console.warn(`State save skipped:`, e);
+      }
+    }
+  }, 200);
+}
+
+async function initApp() {
+  populateSelectDropdowns();
+
+  if (window.notebookAppApi && typeof window.notebookAppApi.getAppState === `function`) {
+    try {
+      const saved = await window.notebookAppApi.getAppState();
+      if (saved && typeof saved === `object`) {
+        const def = createInitialState();
+        appState = Object.assign({}, def, saved);
+
+        if (appState.gender !== `male` && appState.gender !== `female`) {
+          appState.gender = `male`;
+        }
+        if (!AGE_COEFFICIENTS[appState.ageGroup]) {
+          appState.ageGroup = `20_30`;
+        }
+
+        let wasGoalMigrated = false;
+        if (saved.goal === `body_make`) {
+          appState.goal = appState.gender === `female` ? `body_make_female` : `body_make_male`;
+          wasGoalMigrated = true;
+        } else if (!GOAL_LABELS[appState.goal]) {
+          appState.goal = `body_make_male`;
+          wasGoalMigrated = true;
+        }
+
+        if (saved.muscleInputs) {
+          appState.muscleInputs = Object.assign({}, def.muscleInputs, saved.muscleInputs);
+          MUSCLES.forEach((m) => {
+            const tmplP = m.p[appState.goal] !== undefined ? m.p[appState.goal] : 10;
+            const curInp = appState.muscleInputs[m.id] || { b: 4, s: 2, p: tmplP };
+            curInp.p = curInp.p !== undefined ? normalizePriorityTierVal(curInp.p, tmplP) : tmplP;
+            appState.muscleInputs[m.id] = curInp;
+          });
+          if (wasGoalMigrated) {
+            applyGoalTemplateToInputs(appState.goal);
+          }
+        } else if (wasGoalMigrated) {
+          appState.muscleInputs = createDefaultMuscleInputs(appState.goal);
+        }
+
+        if (saved.machineHistory) {
+          appState.machineHistory = Object.assign({}, def.machineHistory, saved.machineHistory);
+        } else {
+          appState.machineHistory = def.machineHistory;
+        }
+        if (!Array.isArray(appState.injured)) appState.injured = [];
+      }
+    } catch (e) {
+      console.warn(`Failed to restore state:`, e);
+    }
+  }
+
+  renderAll();
+
+  if (window.notebookAppApi && typeof window.notebookAppApi.notifyAppReady === `function`) {
+    window.notebookAppApi.notifyAppReady();
+  }
+}
+
+document.addEventListener(`DOMContentLoaded`, initApp);
+</script>
+</body>
+</html>
